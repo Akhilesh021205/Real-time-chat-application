@@ -31,6 +31,20 @@ export default function Huddles() {
     fetchData();
   }, []);
 
+  // Auto-join when link contains ?join=<roomId>
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const join = params.get("join");
+      if (join) {
+        setHuddleContext({ id: join, name: "" });
+        setShowHuddle(true);
+      }
+    } catch (err) {
+      console.error("Failed to parse join param", err);
+    }
+  }, []);
+
   const handleStartHuddle = (id, name) => {
     setHuddleContext({ id, name });
     setShowHuddle(true);
