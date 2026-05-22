@@ -25,9 +25,13 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
     try {
       await login(email.trim(), password);
       const pendingInvite = localStorage.getItem("pendingInviteCode");
+      const pendingChannelInvite = localStorage.getItem("pendingChannelInviteCode");
       if (pendingInvite) {
         localStorage.removeItem("pendingInviteCode");
         navigate(`/join/${pendingInvite}`);
+      } else if (pendingChannelInvite) {
+        localStorage.removeItem("pendingChannelInviteCode");
+        navigate(`/join-channel/${pendingChannelInvite}`);
       } else {
         navigate("/home");
       }

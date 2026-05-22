@@ -58,9 +58,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!isValidUser(user) || loading) return;
     const pendingInvite = localStorage.getItem("pendingInviteCode");
+    const pendingChannelInvite = localStorage.getItem("pendingChannelInviteCode");
     if (pendingInvite && !window.location.pathname.startsWith("/join/")) {
       localStorage.removeItem("pendingInviteCode");
       window.location.href = `/join/${pendingInvite}`;
+    } else if (pendingChannelInvite && !window.location.pathname.startsWith("/join-channel/")) {
+      localStorage.removeItem("pendingChannelInviteCode");
+      window.location.href = `/join-channel/${pendingChannelInvite}`;
     }
   }, [user, loading]);
 

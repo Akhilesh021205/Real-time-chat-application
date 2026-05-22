@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useWorkspace } from "../context/WorkspaceContext.jsx";
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 export default function JoinChannel() {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export default function JoinChannel() {
     setError("");
     try {
       const response = await axios.post(
-        "http://localhost:4000/api/channels/join-by-code",
+        `${API_BASE}/api/channels/join-by-code`,
         { inviteCode: code },
         { withCredentials: true }
       );
@@ -46,6 +48,11 @@ export default function JoinChannel() {
       navigate(`/chat/${channel._id}`);
     } catch (err) {
       console.error(err);
+      if (err.response?.status === 401) {
+        localStorage.setItem("pendingChannelInviteCode", code);
+        navigate("/login");
+        return;
+      }
       setError(err.response?.data?.message || "Channel invite code is invalid or expired");
       setJoining(false);
     }
