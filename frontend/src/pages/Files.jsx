@@ -37,7 +37,11 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function fileHref(url) {
   if (!url) return "#";
-  return url.startsWith("http") ? url : `${API_BASE}${url}`;
+  // Proxy external URLs through backend to avoid client-side access issues
+  if (url.startsWith("http")) {
+    return `${API_BASE}/api/files/proxy?url=${encodeURIComponent(url)}`;
+  }
+  return `${API_BASE}${url}`;
 }
 
 function FilesEmptyState({ onUpload }) {

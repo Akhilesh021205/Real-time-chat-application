@@ -84,3 +84,44 @@ export const deleteFile = async (req, res) => {
     res.status(500).json({ message: "Error deleting file" });
   }
 };
+
+// Proxy an external file URL (server-side fetch) to avoid client-side auth/CORS issues.
+export const proxyFile = async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ message: "Missing url parameter" });
+
+    // Basic host whitelist to avoid open proxy abuse
+    const allowedHosts = ["res.cloudinary.com", "cloudinary.com"];
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (err) {
+      return res.status(400).json({ message: "Invalid url" });
+    }
+
+    const hostname = parsed.hostname;
+    const allowed = allowedHosts.some((h) => hostname.endsWith(h));
+    if (!allowed) return res.status(403).json({ message: "Proxy to this host is not allowed" });
+
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      return res.status(resp.status).send(text || "Failed to fetch resource");
+    }
+
+    // Forward relevant headers
+    const contentType = resp.headers.get("content-type") || "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    const contentLength = resp.headers.get("content-length");
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+
+    // Stream response body
+    const body = resp.body;
+    if (!body) return res.status(500).send("No response body from upstream");
+    body.pipe(res);
+  } catch (err) {
+    console.error("proxyFile error", err);
+    res.status(500).json({ message: "Proxy error" });
+  }
+};

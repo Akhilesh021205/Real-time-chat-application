@@ -5,7 +5,10 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function buildAttachmentUrl(attachment) {
   if (!attachment) return "";
-  if (/^https?:\/\//i.test(attachment)) return attachment;
+  if (/^https?:\/\//i.test(attachment)) {
+    // Proxy absolute external attachments through backend to avoid client-side CORS/auth issues
+    return `${API_BASE}/api/files/proxy?url=${encodeURIComponent(attachment)}`;
+  }
   return `${API_BASE}${attachment.startsWith("/") ? "" : "/"}${attachment}`;
 }
 
