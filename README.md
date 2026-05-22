@@ -19,8 +19,6 @@ Key real-time behaviors:
 
 ## 🚀 Deployment
 
-> Add your hosting links here once your backend/frontend are deployed.
-
 ### Backend
 - **Backend API**: (e.g., https://your-backend-domain.com)
 
