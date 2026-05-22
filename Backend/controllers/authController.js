@@ -6,7 +6,10 @@ import nodemailer from "nodemailer"
 import passport from "passport"
 import { Workspace } from "../Models/workspace.js"
 
-const isProduction = process.env.NODE_ENV === "production";
+const usesHttpsFrontend =
+  process.env.FRONTEND_URL?.startsWith("https://") ||
+  process.env.CLIENT_URL?.startsWith("https://");
+const isProduction = process.env.NODE_ENV === "production" || usesHttpsFrontend;
 
 const authCookieOptions = {
   httpOnly: true,
