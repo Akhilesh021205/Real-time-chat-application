@@ -3,6 +3,8 @@ import axios from "axios";
 import { useNavigate } from "react-router"
 import { useAuth } from "../context/AuthContext";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function SearchBox({ onSelectArea }) {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState([]);
@@ -20,7 +22,7 @@ function SearchBox({ onSelectArea }) {
 
     try {
       const res = await axios.get(
-        `http://localhost:4000/api/users/search?query=${value}`,
+        `${API_BASE}/api/users/search?query=${value}`,
         { withCredentials: true }
       );
 
@@ -39,7 +41,7 @@ function SearchBox({ onSelectArea }) {
 
     try {
       const res = await axios.post(
-        "http://localhost:4000/api/dm/create",
+        `${API_BASE}/api/dm/create`,
         { userId },
         { withCredentials: true }
       );

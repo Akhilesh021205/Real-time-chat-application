@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate } from "react-router";
 import { Globe, User, MessageSquare, Building2, Users } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 export default function Workspaces() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -23,9 +25,9 @@ export default function Workspaces() {
     setIsLoading(true);
     try {
       const [uRes, cRes, wRes] = await Promise.all([
-        axios.get("http://localhost:4000/api/users"),
-        axios.get("http://localhost:4000/api/channels", { withCredentials: true }),
-        axios.get("http://localhost:4000/api/workspaces/user", { withCredentials: true })
+        axios.get(`${API_BASE}/api/users`, { withCredentials: true }),
+        axios.get(`${API_BASE}/api/channels`, { withCredentials: true }),
+        axios.get(`${API_BASE}/api/workspaces/user`, { withCredentials: true })
       ]);
       setUsers(uRes.data);
       setChannels(cRes.data);
@@ -47,7 +49,7 @@ export default function Workspaces() {
     
     setIsCreating(true);
     try {
-      await axios.post("http://localhost:4000/api/workspaces/create", 
+      await axios.post(`${API_BASE}/api/workspaces/create`,
         { name: newWsName.trim() }, 
         { withCredentials: true }
       );

@@ -22,6 +22,8 @@ const APP_ICON_MAP = {
   app6: BarChart3,
 };
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 export default function Apps() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -34,8 +36,8 @@ export default function Apps() {
     const fetchData = async () => {
       try {
         const [uRes, cRes] = await Promise.all([
-          axios.get("http://localhost:4000/api/users"),
-          axios.get("http://localhost:4000/api/channels", { withCredentials: true })
+          axios.get(`${API_BASE}/api/users`, { withCredentials: true }),
+          axios.get(`${API_BASE}/api/channels`, { withCredentials: true })
         ]);
         setUsers(uRes.data);
         setChannels(cRes.data);

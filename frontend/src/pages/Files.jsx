@@ -33,7 +33,7 @@ const FILTERS = [
   { id: "starred", label: "Starred" },
 ];
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function fileHref(url) {
   if (!url) return "#";

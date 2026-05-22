@@ -5,6 +5,8 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate } from "react-router";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 export default function Starred() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -17,8 +19,8 @@ export default function Starred() {
     const fetchData = async () => {
       try {
         const [uRes, cRes] = await Promise.all([
-          axios.get("http://localhost:4000/api/users"),
-          axios.get("http://localhost:4000/api/channels", { withCredentials: true })
+          axios.get(`${API_BASE}/api/users`, { withCredentials: true }),
+          axios.get(`${API_BASE}/api/channels`, { withCredentials: true })
         ]);
         setUsers(uRes.data);
         setChannels(cRes.data);

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { X, Users, Hash, MessageSquare, Paperclip, Activity } from "lucide-react";
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function WorkspaceAnalyticsModal({ open, onClose, workspace }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -16,12 +18,12 @@ function WorkspaceAnalyticsModal({ open, onClose, workspace }) {
     try {
       // Fetch members count
       const membersRes = await axios.get(
-        `http://localhost:4000/api/workspaces/${workspace._id}/members`,
+        `${API_BASE}/api/workspaces/${workspace._id}/members`,
         { withCredentials: true }
       );
       // Fetch channels
       const channelsRes = await axios.get(
-        `http://localhost:4000/api/channels`,
+        `${API_BASE}/api/channels`,
         { withCredentials: true }
       );
       const workspaceChannels = (channelsRes.data || []).filter(

@@ -3,6 +3,8 @@ import axios from "axios";
 import { useLocation } from "react-router";
 import Sidebar from "../components/Sidebar.jsx";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function PlaceholderPage({ title, description, icon }) {
   const [users, setUsers] = useState([]);
   const [channels, setChannels] = useState([]);
@@ -12,7 +14,7 @@ function PlaceholderPage({ title, description, icon }) {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await axios.get("http://localhost:4000/api/users");
+        const res = await axios.get(`${API_BASE}/api/users`, { withCredentials: true });
         setUsers(res.data);
       } catch (err) { }
     };
@@ -21,7 +23,7 @@ function PlaceholderPage({ title, description, icon }) {
 
   const fetchChannels = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/channels", {
+      const res = await axios.get(`${API_BASE}/api/channels`, {
         withCredentials: true,
       });
       setChannels(res.data);
