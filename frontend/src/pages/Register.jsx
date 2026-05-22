@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext.jsx';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
@@ -24,7 +26,7 @@ function Register() {
   };
 
   const handleSocialLogin = () => {
-    window.location.href = "http://localhost:4000/api/auth/google";
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   return (

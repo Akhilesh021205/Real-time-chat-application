@@ -6,6 +6,15 @@ import nodemailer from "nodemailer"
 import passport from "passport"
 import { Workspace } from "../Models/workspace.js"
 
+const isProduction = process.env.NODE_ENV === "production";
+
+const authCookieOptions = {
+  httpOnly: true,
+  sameSite: isProduction ? "none" : "lax",
+  secure: isProduction,
+  path: "/",
+};
+
 /* REGISTER */
 
 export const registerUser = async (req, res) => {
@@ -64,16 +73,11 @@ export const loginUser = async (req, res) => {
       { expiresIn: "7d" }
     )
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      path: "/"
-    })
+    res.cookie("token", token, authCookieOptions)
 
-    // Set user as active on login
+    // Set user as active on login without re-validating older user documents.
+    await User.updateOne({ _id: user._id }, { $set: { status: "active" } });
     user.status = "active";
-    await user.save();
 
     res.json({ user })
 
@@ -91,7 +95,7 @@ export const logoutUser = async (req, res) => {
       await User.findByIdAndUpdate(req.userId, { status: "offline" });
     } catch (e) { /* ignore */ }
   }
-  res.clearCookie("token")
+  res.clearCookie("token", authCookieOptions)
   res.json({ message: "Logged out successfully" })
 }
 
@@ -141,11 +145,7 @@ export const googleAuthCallback = [
         { expiresIn: "7d" }
       )
 
-      res.cookie("token", token, {
-  httpOnly: true,
-  secure: false,
-  sameSite: "lax", 
-});
+      res.cookie("token", token, authCookieOptions);
 
       // 🔥 Redirect to frontend
       res.redirect(`${process.env.FRONTEND_URL}/dashboard`)
@@ -229,13 +229,14 @@ export const verifyOTPAndReset = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP." });
     }
 
-    // Reset password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    user.resetOTP = undefined;
-    user.resetOTPExpires = undefined;
-
-    await user.save();
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword },
+        $unset: { resetOTP: "", resetOTPExpires: "" },
+      }
+    );
 
     res.json({ message: "Password updated successfully! You can now login." });
 
@@ -256,12 +257,13 @@ export const resetPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User with this email not found.' });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    // clear any OTP fields just in case
-    user.resetOTP = undefined;
-    user.resetOTPExpires = undefined;
-
-    await user.save();
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword },
+        $unset: { resetOTP: "", resetOTPExpires: "" },
+      }
+    );
 
     return res.json({ message: 'Password updated successfully. You can now login.' });
   } catch (err) {

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext.jsx";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function Login({ onSwitchToRegister, onLoggedIn }) {
   const navigate = useNavigate();
   const { login, resetPassword } = useAuth();
@@ -62,7 +64,7 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
   // ✅ UPDATED Google Login
   const handleSocialLogin = () => {
     setLoading(true);
-    window.location.href = "http://localhost:4000/api/auth/google";
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   return (
