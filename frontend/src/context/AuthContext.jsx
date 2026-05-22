@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { socket } from '../socket/socket.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -52,11 +53,35 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    if (!user || loading) return;
+    const pendingInvite = localStorage.getItem("pendingInviteCode");
+    if (pendingInvite && !window.location.pathname.startsWith("/join/")) {
+      localStorage.removeItem("pendingInviteCode");
+      window.location.href = `/join/${pendingInvite}`;
+    }
+  }, [user, loading]);
+
+  useEffect(() => {
     try {
       if (user) localStorage.setItem('slackClone.currentUser', JSON.stringify(user));
       else localStorage.removeItem('slackClone.currentUser');
     } catch {}
   }, [user]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    if (!socket.connected) socket.connect();
+    socket.emit('goOnline', { userId: user._id });
+
+    const onStatusChanged = ({ userId, status }) => {
+      if (userId?.toString() !== user._id?.toString()) return;
+      setUser((prev) => (prev ? { ...prev, status } : prev));
+    };
+
+    socket.on('userStatusChanged', onStatusChanged);
+    return () => socket.off('userStatusChanged', onStatusChanged);
+  }, [user?._id]);
 
   const register = async (username, email, password) => {
     const data = await fetchJson('/api/auth/register', {
@@ -64,10 +89,6 @@ export const AuthProvider = ({ children }) => {
       body: JSON.stringify({ username, email, password }),
     });
 
-    if (data?.user) {
-      localStorage.clear();
-      setUser(data.user);
-    }
     return data;
   };
 
@@ -78,9 +99,67 @@ export const AuthProvider = ({ children }) => {
     });
 
     if (data?.user) {
-      localStorage.clear();
+      const preserveKeys = [
+        "pendingInviteCode",
+        "pendingChannelInviteCode",
+        "slackClone.sidebarCollapsed",
+        "slackClone.theme",
+        "slackClone.lastWorkspaceId_" + data.user._id,
+      ];
+      const preserved = {};
+      preserveKeys.forEach((key) => {
+        const val = localStorage.getItem(key);
+        if (val != null) preserved[key] = val;
+      });
+      localStorage.removeItem("slackClone.currentUser");
+      Object.entries(preserved).forEach(([key, val]) => localStorage.setItem(key, val));
       setUser(data.user);
     }
+    return data;
+  };
+
+  const resetPassword = async (email, newPassword) => {
+    return await fetchJson('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, newPassword }),
+    });
+  };
+
+
+  const updateStatus = async (text, emoji) => {
+    const data = await fetchJson('/api/custom/status', {
+      method: 'POST',
+      body: JSON.stringify({ text, emoji }),
+    });
+    if (data) setUser(data);
+    return data;
+  };
+
+  const updatePresence = async (status) => {
+    const data = await fetchJson('/api/custom/presence', {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+    if (data) setUser(data);
+    return data;
+  };
+
+  const starChannel = async (channelId) => {
+    const data = await fetchJson(`/api/custom/star-channel/${channelId}`, {
+      method: 'POST',
+    });
+    if (data) {
+      setUser(prev => ({ ...prev, starredChannels: data.starredChannels }));
+    }
+    return data;
+  };
+
+  const updateSidebarSections = async (sections) => {
+    const data = await fetchJson('/api/custom/sidebar/sections', {
+      method: 'POST',
+      body: JSON.stringify({ sections }),
+    });
+    if (data) setUser(data);
     return data;
   };
 
@@ -92,8 +171,16 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const setUserProfile = (nextUser) => {
+    if (nextUser) setUser(nextUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, setUser: setUserProfile, loading, register, login, logout, 
+      resetPassword, 
+      updateStatus, updatePresence, starChannel, updateSidebarSections 
+    }}>
       {children}
     </AuthContext.Provider>
   );

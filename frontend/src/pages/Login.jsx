@@ -4,14 +4,16 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 function Login({ onSwitchToRegister, onLoggedIn }) {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [error, setError] = useState("");
   const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
   const [loading, setLoading] = useState(false); // ✅ NEW
 
   const handleSubmit = async (e) => {
@@ -20,20 +22,41 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
 
     try {
       await login(email.trim(), password);
-      navigate("/home");
+      const pendingInvite = localStorage.getItem("pendingInviteCode");
+      if (pendingInvite) {
+        localStorage.removeItem("pendingInviteCode");
+        navigate(`/join/${pendingInvite}`);
+      } else {
+        navigate("/home");
+      }
       onLoggedIn?.();
     } catch (err) {
       setError(err.message || "Login failed");
     }
   };
 
-  const handleResetPassword = () => {
-    if (!email) {
-      setResetMessage("Please enter your email first.");
+  const handleResetPassword = async () => {
+    const cleanEmail = email.trim();
+    setResetError("");
+    setResetMessage("");
+
+    if (!cleanEmail || !newPassword.trim()) {
+      setResetError("Enter email and new password.");
       return;
     }
 
-    setResetMessage("Password reset link sent to your email.");
+    setLoading(true);
+    try {
+      const res = await resetPassword(cleanEmail, newPassword);
+      setResetMessage(res?.message || "Password updated. You can now login.");
+      setShowForgot(false);
+      setNewPassword("");
+      setPassword("");
+    } catch (err) {
+      setResetError(err.message || "Could not reset password.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ✅ UPDATED Google Login
@@ -138,21 +161,40 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
           {/* Forgot Password Section */}
           {showForgot && (
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                className="w-full bg-purple-600 py-3 rounded text-white hover:bg-purple-700"
-              >
-                Send Reset Link
-              </button>
+              <>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg backdrop-blur-md px-4 py-3 text-white focus:border-accent/60 focus:ring-1 focus:ring-accent/50 outline-none transition-all duration-200"
+                />
 
-              {resetMessage && (
-                <p className="text-green-400 text-sm">{resetMessage}</p>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleResetPassword}
+                  className="w-full bg-purple-600 py-3 rounded text-white hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Please wait..." : "Reset Password"}
+                </button>
+
+                {resetMessage && (
+                  <p className="text-green-400 text-sm">{resetMessage}</p>
+                )}
+              </>
+              {resetError && (
+                <p className="text-red-400 text-sm">{resetError}</p>
               )}
 
               <button
                 type="button"
-                onClick={() => setShowForgot(false)}
+                onClick={() => {
+                  setShowForgot(false);
+                  setNewPassword("");
+                  setResetMessage("");
+                  setResetError("");
+                }}
                 className="text-sm text-gray-400 hover:text-white"
               >
                 Back to Login

@@ -53,7 +53,7 @@ function Tools() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[#0b1220] text-white">
+    <div className="flex h-screen bg-[#101418] text-white">
       <Sidebar
         users={users}
         channels={channels}
@@ -63,7 +63,7 @@ function Tools() {
         refreshChannels={fetchChannels}
       />
 
-      <main className="flex-1 min-w-0 flex flex-col bg-[#101826]">
+      <main className="flex-1 min-w-0 flex flex-col bg-[#101418]">
         <header className="h-14 border-b border-white/10 px-5 flex items-center justify-between">
           <div className="font-semibold">Tools</div>
           <button className="rounded-md bg-emerald-500/90 px-3 py-2 text-sm font-semibold text-black hover:bg-emerald-500">
@@ -74,7 +74,7 @@ function Tools() {
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="flex gap-8">
             <aside className="w-60 shrink-0 hidden lg:block">
-              <div className="rounded-lg border border-white/10 bg-[#0b1220] p-3">
+              <div className="rounded-lg border border-white/10 bg-[#101418] p-3">
                 <div className="text-xs text-white/50 uppercase tracking-wide px-2">
                   Tools
                 </div>
@@ -123,7 +123,7 @@ function Tools() {
                   {featured.map((f) => (
                     <div
                       key={f.title}
-                      className="rounded-xl border border-white/10 bg-[#0b1220] p-4 hover:bg-[#0f172a] transition"
+                      className="rounded-xl border border-white/10 bg-[#101418] p-4 hover:bg-[#171c22] transition"
                     >
                       <div className="text-xs text-white/60">{f.badge}</div>
                       <div className="mt-1 font-semibold">{f.title}</div>

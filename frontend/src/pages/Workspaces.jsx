@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate } from "react-router";
+import { Globe, User, MessageSquare, Building2, Users } from "lucide-react";
 
 export default function Workspaces() {
   const { user } = useAuth();
@@ -64,7 +65,7 @@ export default function Workspaces() {
   const activeUserCount = users.filter(u => u.status === 'active').length;
 
   return (
-    <div className="flex h-screen bg-[#0b1220] text-white overflow-hidden">
+    <div className="flex h-screen bg-[#101418] text-white overflow-hidden">
       <Sidebar 
         users={users} 
         channels={channels} 
@@ -72,10 +73,10 @@ export default function Workspaces() {
         onSelectArea={setActiveArea} 
       />
 
-      <main className="flex-1 min-w-0 flex flex-col bg-[#101826] relative">
+      <main className="flex-1 min-w-0 flex flex-col bg-[#101418] relative">
         <header className="h-16 border-b border-white/10 px-8 flex items-center justify-between bg-panel/30 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
-             <span className="text-2xl">🌍</span>
+             <Globe size={24} className="text-accent" />
              <h1 className="text-xl font-bold tracking-tight text-white/90">Directories: All Workspaces</h1>
           </div>
           <button 
@@ -91,12 +92,12 @@ export default function Workspaces() {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: "Active Users Across Orgs", value: activeUserCount, icon: "👤", color: "text-blue-400" },
-                { label: "Total Channels", value: channels.length, icon: "💬", color: "text-green-400" },
-                { label: "Your Workspaces", value: workspaces.length, icon: "🏢", color: "text-pink-400" },
+                { label: "Active Users Across Orgs", value: activeUserCount, Icon: User, color: "text-blue-400" },
+                { label: "Total Channels", value: channels.length, Icon: MessageSquare, color: "text-green-400" },
+                { label: "Your Workspaces", value: workspaces.length, Icon: Building2, color: "text-pink-400" },
               ].map((stat) => (
                 <div key={stat.label} className="bg-panel border border-white/5 rounded-2xl p-6 backdrop-blur-md space-y-2 shadow-xl">
-                  <div className="text-2xl">{stat.icon}</div>
+                  <stat.Icon size={28} className={stat.color} strokeWidth={2} />
                   <div className={`text-3xl font-black ${stat.color} tracking-tight`}>{stat.value}</div>
                   <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">{stat.label}</div>
                 </div>
@@ -112,7 +113,7 @@ export default function Workspaces() {
 
               {workspaces.length === 0 && !isLoading ? (
                 <div className="bg-panel/30 border border-dashed border-white/10 rounded-3xl p-12 text-center space-y-4">
-                  <div className="text-5xl opacity-20">🏢</div>
+                  <Building2 size={56} className="mx-auto opacity-20" strokeWidth={1.5} />
                   <div className="text-gray-400">You haven't joined any workspaces yet.</div>
                   <button onClick={() => setShowCreateModal(true)} className="text-accent font-bold hover:underline">Create your first one</button>
                 </div>
@@ -145,7 +146,7 @@ export default function Workspaces() {
                         <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             <div className="text-xs flex items-center gap-1.5 text-gray-400">
-                              <span className="opacity-60">👥</span> <strong>{ws.members?.length || 0}</strong> members
+                              <Users size={14} className="opacity-60" /> <strong>{ws.members?.length || 0}</strong> members
                             </div>
                           </div>
                           <button 
@@ -166,7 +167,7 @@ export default function Workspaces() {
 
         {/* Create Workspace Modal */}
         {showCreateModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0b1220]/80 backdrop-blur-sm p-4">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#101418]/80 backdrop-blur-sm p-4">
             <div className="bg-[#1a1c1e] border border-white/10 w-full max-w-md rounded-3xl shadow-3xl p-8 animate-in fade-in zoom-in duration-200">
               <h3 className="text-2xl font-black text-white mb-2">Create Workspace</h3>
               <p className="text-gray-400 text-sm mb-6">Give your new workspace a name. You can invite others later.</p>

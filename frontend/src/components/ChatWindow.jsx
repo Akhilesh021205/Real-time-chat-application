@@ -1,5 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import {
+  Hand,
+  Bell,
+  Folder,
+  MoreHorizontal,
+  Settings,
+  Mic,
+  Star,
+  Search,
+  Headphones,
+  Zap,
+  Bot,
+  Hash,
+  MessageSquare,
+} from "lucide-react";
+import { useWorkspace } from "../context/WorkspaceContext.jsx";
 import { socket } from "../socket/socket";
 import { useAuth } from "../context/AuthContext.jsx";
 import MessageBubble from "./MessageBubble.jsx";
@@ -8,6 +24,31 @@ import SearchBox from "./searchBox.jsx";
 import ThreadSidebar from "./ThreadSidebar.jsx";
 import HuddleRoom from "./HuddleRoom.jsx";
 import Modal from "./Modal.jsx";
+import { useNavigate } from "react-router";
+import { resolveProfilePic } from "./EditProfileModal.jsx";
+import { sameId } from "../utils/ids.js";
+
+function conversationAvatarUrl(person, currentUser) {
+  if (!person) return null;
+  if (person._id === "slackbot") return "/slackbot-icon.jpg";
+  const pic =
+    person.profilePic ||
+    (currentUser && sameId(person._id, currentUser._id)
+      ? currentUser.profilePic
+      : null);
+  return resolveProfilePic(pic);
+}
+
+const AREA_PLACEHOLDERS = {
+  activity: { Icon: Bell, label: "Notifications" },
+  files: { Icon: Folder, label: "Files" },
+  more: { Icon: MoreHorizontal, label: "More" },
+  settings: { Icon: Settings, label: "Settings" },
+  huddles: { Icon: Mic, label: "Huddles (coming soon)" },
+  directories: { Icon: Folder, label: "Directories (coming soon)" },
+  starred: { Icon: Star, label: "Starred items (coming soon)" },
+  apps: { Icon: Bot, label: "Apps (coming soon)" },
+};
 
 function ChatWindow({
   selectedUser,
@@ -17,8 +58,12 @@ function ChatWindow({
   dmRoomId,
   activeArea,
   onSelectArea,
+  dmLayout = false,
+  workspaceName: workspaceNameProp,
 }) {
   const { user } = useAuth();
+  const { currentWorkspace } = useWorkspace();
+  const navigate = useNavigate();
 
   const [messages, setMessages] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
@@ -32,10 +77,12 @@ function ChatWindow({
   /* ROOM (channel ID for channels, OR computed roomId for DMs) */
   const room = useMemo(() => {
     if (!username) return null;
-    if (selectedChannel && channelId) return channelId;
+    if (channelId) return String(channelId);
     if (selectedUser && dmRoomId) return dmRoomId;
     return null;
-  }, [channelId, dmRoomId, username, selectedChannel, selectedUser]);
+  }, [channelId, dmRoomId, username, selectedUser]);
+
+  const hasConversation = !!(selectedChannel || selectedUser);
 
   /* RESET */
   useEffect(() => {
@@ -59,13 +106,24 @@ function ChatWindow({
           return;
         }
 
-        const isDM = !!selectedUser && !selectedChannel;
+        const isDM = !!selectedUser && !channelId;
+        const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
         const endpoint = isDM
-          ? `http://localhost:4000/api/messages/dm/${selectedUser._id}`
-          : `http://localhost:4000/api/messages/${channelId}`;
+          ? `${API}/api/messages/dm/${selectedUser._id}`
+          : `${API}/api/messages/${channelId}`;
 
         const res = await axios.get(endpoint, { withCredentials: true });
-        setMessages(res.data);
+        // Dedupe any accidental duplicate messages by _id
+        const deduped = [];
+        const seen = new Set();
+        (res.data || []).forEach((m) => {
+          const id = m._id || m.createdAt || JSON.stringify(m);
+          if (!seen.has(id)) {
+            seen.add(id);
+            deduped.push(m);
+          }
+        });
+        setMessages(deduped);
       } catch (err) {
         console.error(err);
       }
@@ -76,15 +134,20 @@ function ChatWindow({
 
   /* SOCKET */
   useEffect(() => {
-    if (activeArea !== "chat") return;
+    const canUseSocket =
+      activeArea === "chat" ||
+      activeArea === "home" ||
+      !!selectedUser ||
+      !!selectedChannel;
+    if (!canUseSocket) return;
     if (!username || !room) return;
 
     socket.connect();
 
-    const joinEvent = selectedChannel ? "joinChannel" : "joinDM";
-    const leaveEvent = selectedChannel ? "leaveChannel" : "leaveDM";
+    const joinEvent = channelId ? "joinChannel" : "joinDM";
+    const leaveEvent = channelId ? "leaveChannel" : "leaveDM";
 
-    socket.emit(joinEvent, { room, userId, username });
+    socket.emit(joinEvent, { channelId: room, room, userId, username });
 
     const onNewMessage = (msg) => {
       const normalized = {
@@ -94,7 +157,9 @@ function ChatWindow({
       };
 
       setMessages((prev) => {
-        if (prev.some((m) => m.createdAt === normalized.createdAt)) return prev;
+        // dedupe by id or createdAt
+        if (normalized._id && prev.some((m) => m._id === normalized._id)) return prev;
+        if (normalized.createdAt && prev.some((m) => m.createdAt === normalized.createdAt)) return prev;
         return [...prev, normalized];
       });
     };
@@ -115,6 +180,10 @@ function ChatWindow({
       );
     };
 
+    const onMessageDeleted = ({ messageId }) => {
+      setMessages((prev) => prev.filter((m) => m._id !== messageId));
+    };
+
     socket.off("newMessage"); 
     socket.on("newMessage", onNewMessage);
 
@@ -127,6 +196,9 @@ function ChatWindow({
     socket.off("messageUpdated");
     socket.on("messageUpdated", onMessageUpdated);
 
+    socket.off("messageDeleted");
+    socket.on("messageDeleted", onMessageDeleted);
+
     socket.off("typing");
     socket.on("typing", onTyping);
 
@@ -134,16 +206,17 @@ function ChatWindow({
     socket.on("stop_typing", onStopTyping);
 
     return () => {
-      const leaveEvent = selectedChannel ? "leaveChannel" : "leaveDM";
+      const leaveEvent = channelId ? "leaveChannel" : "leaveDM";
       socket.emit(leaveEvent, { channelId: room, room, userId, username });
       socket.off("newMessage", onNewMessage);
       socket.off("messageEdited", onMessageUpdated);
       socket.off("messageReacted", onMessageUpdated);
       socket.off("messageUpdated", onMessageUpdated);
+      socket.off("messageDeleted", onMessageDeleted);
       socket.off("typing", onTyping);
       socket.off("stop_typing", onStopTyping);
     };
-  }, [room, username, userId, activeArea, selectedChannel]);
+  }, [room, username, userId, activeArea, selectedChannel, selectedUser]);
 
   /* AUTO SCROLL & MARK AS READ */
   useEffect(() => {
@@ -161,18 +234,32 @@ function ChatWindow({
 
     // AI BOT INTERCEPT
     if (selectedUser?._id === "slackbot") {
-      const tempId = "msg_" + Date.now();
+      const history = messages
+        .slice(-10)
+        .map((m) => {
+          const content = m.text || m.content || "";
+          const senderName = m.username || m.sender?.username || "";
+          const senderId = m.sender?._id || m.sender;
+          return {
+            role: senderId === "slackbot" || senderName === "Slackbot" ? "assistant" : "user",
+            content,
+          };
+        })
+        .filter((m) => m.content && !m.content.includes("*Thinking...*"));
+
+      const tempId = "msg_" + (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
       const userMsg = {
         _id: tempId,
         content: text || "",
+        attachment: attachmentUrl || null,
         sender: { username, _id: userId || "me" },
         createdAt: new Date().toISOString()
       };
       
-      const botThinkingId = "bot_" + Date.now();
+      const botThinkingId = "bot_" + (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
       const botThinkingMsg = {
         _id: botThinkingId,
-        content: "🤖 *Thinking...*",
+        content: "*Thinking...*",
         sender: { username: "Slackbot", _id: "slackbot" },
         createdAt: new Date().toISOString()
       };
@@ -185,34 +272,125 @@ function ChatWindow({
       }, 50);
 
       try {
-        const res = await axios.post("http://localhost:4000/api/bot/chat", { prompt: text }, {
-          withCredentials: true
-        });
+        const res = await axios.post(
+          "http://localhost:4000/api/bot/chat",
+          { prompt: text, attachmentUrl, history },
+          { withCredentials: true }
+        );
         
         setMessages((prev) => 
           prev.map(m => m._id === botThinkingId ? { ...m, content: res.data.content } : m)
         );
       } catch (err) {
         setMessages((prev) => 
-          prev.map(m => m._id === botThinkingId ? { ...m, content: "❌ **Error contacting AI server.** Check your connection or API key." } : m)
+          prev.map(m => m._id === botThinkingId ? { ...m, content: "**Error contacting AI server.** Check your connection or API key." } : m)
         );
       }
       return;
     }
 
+    // Optimistic UI: add a temporary local message so user sees the message immediately
+    const tempId = "tmp_" + (crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    const tempMessage = {
+      _id: tempId,
+      content: text || "",
+      text: text || "",
+      attachment: attachmentUrl || null,
+      sender: { username, _id: userId || "me" },
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    // Auto scroll to bottom
+    setTimeout(() => listEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
     try {
-      const isDM = !!selectedUser && !selectedChannel;
+      const isDM = !!selectedUser && !channelId;
       const payload = isDM
         ? { content: text || "", receiverId: selectedUser._id, attachment: attachmentUrl }
         : { content: text || "", channelId: room, attachment: attachmentUrl };
 
-      await axios.post("http://localhost:4000/api/messages/send", payload, {
+      const res = await axios.post("http://localhost:4000/api/messages/send", payload, {
         withCredentials: true,
+      });
+      const sentMessage = res.data;
+      const normalized = {
+        ...sentMessage,
+        text: sentMessage.text || sentMessage.content || "",
+        username: sentMessage.username || sentMessage.sender?.username || username,
+      };
+
+      setMessages((prev) => {
+        // Replace temp message if present and dedupe by _id
+        if (prev.some((m) => m._id === tempId)) {
+          const mapped = prev.map((m) => (m._id === tempId ? normalized : m));
+          const seen = new Set();
+          return mapped.filter((item) => {
+            if (!item || !item._id) return true;
+            if (seen.has(item._id)) return false;
+            seen.add(item._id);
+            return true;
+          });
+        }
+        // Otherwise avoid duplicates and append
+        if (!normalized?._id || prev.some((m) => m._id === normalized._id)) return prev;
+        return [...prev, normalized];
       });
     } catch (err) {
       console.error(err);
+      const reason = err?.response?.data?.message || err.message || "Failed to send";
+      // mark temp message as failed so user can retry and show reason
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? { ...m, pending: false, failed: true, failedReason: reason } : m))
+      );
     }
   };
+
+  const handleRetry = async (tempId) => {
+    const msg = messages.find((m) => m._id === tempId);
+    if (!msg) return;
+    // optimistic: set pending true and clear failed
+    setMessages((prev) => prev.map((m) => (m._id === tempId ? { ...m, pending: true, failed: false } : m)));
+
+    try {
+      const isDM = !!selectedUser && !channelId;
+      const payload = isDM
+        ? { content: msg.content || msg.text || "", receiverId: selectedUser._id, attachment: msg.attachment }
+        : { content: msg.content || msg.text || "", channelId: room, attachment: msg.attachment };
+
+      const res = await axios.post("http://localhost:4000/api/messages/send", payload, {
+        withCredentials: true,
+      });
+      const sentMessage = res.data;
+      const normalized = {
+        ...sentMessage,
+        text: sentMessage.text || sentMessage.content || "",
+        username: sentMessage.username || sentMessage.sender?.username || username,
+      };
+
+      setMessages((prev) => {
+        const mapped = prev.map((m) => (m._id === tempId ? normalized : m));
+        const seen = new Set();
+        return mapped.filter((item) => {
+          if (!item || !item._id) return true;
+          if (seen.has(item._id)) return false;
+          seen.add(item._id);
+          return true;
+        });
+      });
+    } catch (err) {
+      console.error("Retry failed", err);
+      const reason = err?.response?.data?.message || err.message || "Retry failed";
+      setMessages((prev) => prev.map((m) => (m._id === tempId ? { ...m, pending: false, failed: true, failedReason: reason } : m)));
+    }
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    setMessages((prev) => prev.filter((m) => m._id !== messageId));
+  };
+
+  const isDM = !!selectedUser && !selectedChannel;
 
   /* TYPING */
   const handleTypingChange = (isTyping) => {
@@ -224,9 +402,14 @@ function ChatWindow({
     });
   };
 
-  const isDM = !!selectedUser && !selectedChannel;
-  const workspaceName = user?.username || "My Workspace";
+  const workspaceName =
+    workspaceNameProp || currentWorkspace?.name || user?.username || "Workspace";
   const headerContextLabel = isDM ? "Direct messages" : workspaceName;
+  const channelDisplayName = selectedChannel?.name || (channelId ? "channel" : "");
+  const headerAvatarUrl = useMemo(
+    () => (selectedChannel ? null : conversationAvatarUrl(selectedUser, user)),
+    [selectedChannel, selectedUser, user]
+  );
 
   /* STARRED ITEMS LOGIC */
   const [isStarred, setIsStarred] = useState(false);
@@ -271,7 +454,7 @@ function ChatWindow({
     if (!huddleLink.trim()) return;
     
     // Broadcast the meeting link
-    const message = `🎙️ Join my meeting: ${huddleLink.trim()}`;
+    const message = `Join my meeting: ${huddleLink.trim()}`;
     handleSend(message, null);
     
     // Close modal and optionally open the link in a new tab
@@ -296,8 +479,9 @@ function ChatWindow({
   if (activeArea === "home") {
     return (
       <div className="flex-1 p-10 text-white">
-        <h1 className="text-2xl font-bold mb-4">
-          👋 Welcome to your workspace
+        <h1 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <Hand size={28} className="text-accent" />
+          Welcome to your workspace
         </h1>
 
         <p className="text-gray-400 mb-6">
@@ -320,14 +504,17 @@ function ChatWindow({
   if (activeArea !== "chat") {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
-        {activeArea === "activity" && "🔔 Notifications"}
-        {activeArea === "files" && "📁 Files"}
-        {activeArea === "more" && "⋯ More"}
-        {activeArea === "settings" && "⚙️ Settings"}
-        {activeArea === "huddles" && "🎙️ Huddles (coming soon)"}
-        {activeArea === "directories" && "📁 Directories (coming soon)"}
-        {activeArea === "starred" && "⭐ Starred items (coming soon)"}
-        {activeArea === "apps" && "🤖 Apps (coming soon)"}
+        {AREA_PLACEHOLDERS[activeArea] ? (
+          (() => {
+            const { Icon, label } = AREA_PLACEHOLDERS[activeArea];
+            return (
+              <div className="flex items-center gap-2">
+                <Icon size={20} />
+                <span>{label}</span>
+              </div>
+            );
+          })()
+        ) : null}
         {activeArea === "search" && <SearchBox onSelectArea={onSelectArea} />}
       </div>
     );
@@ -335,34 +522,58 @@ function ChatWindow({
 
   /* CHAT */
   return (
-    <div className="flex flex-1 overflow-hidden">
-      <div className="flex flex-col flex-1 bg-transparent backdrop-blur-sm">
+    <div className="flex flex-1 overflow-hidden min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 bg-[#101418]">
 
       {/* HEADER */}
-      <div className="bg-panel backdrop-blur-md border border-white/5 rounded-xl shadow-xl rounded-none border-x-0 border-t-0 border-b-white/5 px-6 py-4 flex items-center justify-between z-10 sticky top-0 bg-sidebar/50">
-        <div className="flex-1">
-          <div className="text-xs text-gray-400">{headerContextLabel}</div>
+      <div className="h-14 shrink-0 border-b border-white/10 px-5 flex items-center justify-between bg-[#101418]">
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+            {headerContextLabel}
+          </div>
 
-          <div className="flex items-center gap-3 mt-1">
-            <div className="w-9 h-9 bg-[#611f69] rounded flex items-center justify-center font-bold">
-              {selectedChannel?.name?.[0] || selectedUser?.username?.[0] || "?"}
+          <div className="flex items-center gap-2.5 mt-0.5">
+            <div className="w-8 h-8 rounded-lg bg-[#4a154b] flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+              {selectedChannel ? (
+                <Hash size={16} strokeWidth={2.5} />
+              ) : headerAvatarUrl ? (
+                <img
+                  src={headerAvatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                (selectedUser?.username?.[0] || "?").toUpperCase()
+              )}
             </div>
 
-            <div>
-              <div className="font-semibold flex items-center gap-2">
-                {selectedChannel?.name ? `# ${selectedChannel.name}` : selectedUser?.username || "Select a user"}
-                {selectedUser?._id !== "slackbot" && (
-                  <button onClick={handleToggleStar} className={`text-sm ${isStarred ? "text-yellow-400" : "text-gray-500 hover:text-white"}`} title="Add to Starred">
-                    {isStarred ? "★" : "☆"}
+            <div className="min-w-0">
+              <div className="font-semibold text-[15px] flex items-center gap-2 truncate">
+                {selectedChannel
+                  ? `# ${selectedChannel.name}`
+                  : selectedUser?.username || "Select a conversation"}
+                {hasConversation &&
+                  (selectedChannel || channelId || (selectedUser && selectedUser._id !== "slackbot")) && (
+                  <button
+                    type="button"
+                    onClick={handleToggleStar}
+                    className={`shrink-0 ${isStarred ? "text-yellow-400" : "text-white/40 hover:text-white"}`}
+                    title="Star"
+                  >
+                    <Star size={14} fill={isStarred ? "currentColor" : "none"} strokeWidth={2} />
                   </button>
                 )}
               </div>
-              <div className="text-xs text-green-400">
+              <div className="text-xs text-white/45 truncate">
                 {selectedChannel
-                  ? "# Channel"
+                  ? selectedChannel.isPrivate
+                    ? "Private channel"
+                    : "Public channel"
                   : selectedUser
-                  ? `Direct message with ${selectedUser.username}`
-                  : "Select a user"}
+                  ? selectedUser._id === "slackbot"
+                    ? "Assistant"
+                    : `Direct message`
+                  : "Pick a channel or DM from the sidebar"}
               </div>
             </div>
           </div>
@@ -372,9 +583,10 @@ function ChatWindow({
         <div className="flex items-center gap-4">
           <button
             onClick={() => onSelectArea("search")}
-            className="text-gray-400 hover:text-white mt-1"
+            className="text-gray-400 hover:text-white mt-1 p-1"
+            title="Search"
           >
-            🔍
+            <Search size={18} strokeWidth={2} />
           </button>
           
           {selectedUser?._id !== "slackbot" && selectedUser?._id && (
@@ -385,11 +597,29 @@ function ChatWindow({
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-[#4a154b] hover:bg-[#541554] text-white rounded-md font-medium shadow-xl border border-white/5 transition-transform active:scale-95"
             >
-              <span className="text-lg">🎧</span> Huddle
+              <Headphones size={18} strokeWidth={2} /> Huddle
             </button>
           )}
         </div>
       </div>
+
+      {dmLayout && isDM && selectedUser && (
+        <div className="flex items-center gap-6 px-6 h-9 border-b border-white/5 bg-[#11161b] text-[13px] shrink-0">
+          <button
+            type="button"
+            className="text-white font-bold border-b-2 border-white h-full flex items-center -mb-px"
+          >
+            Messages
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/canvas")}
+            className="text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            Add canvas
+          </button>
+        </div>
+      )}
       
       {showHuddle && (
         <HuddleRoom room={room} onClose={() => setShowHuddle(false)} name={selectedChannel?.name || selectedUser?.username} />
@@ -427,7 +657,9 @@ function ChatWindow({
 
         {huddleTab === "create" ? (
           <div className="text-center py-4 space-y-4">
-            <div className="text-4xl text-accent">⚡</div>
+            <div className="flex justify-center text-accent">
+              <Zap size={40} strokeWidth={2} />
+            </div>
             <p className="text-sm text-white/70">
               Generate an instant Huddle room and automatically share the invite link with the chat.
             </p>
@@ -435,7 +667,7 @@ function ChatWindow({
               onClick={() => {
                 const randomId = Math.random().toString(36).substring(2, 12);
                 const meetLink = `${window.location.origin}/huddles?join=${randomId}`;
-                handleSend(`🎙️ Join my instant Huddle: ${meetLink}`, null);
+                handleSend(`Join my instant Huddle: ${meetLink}`, null);
                 setShowLinkModal(false);
                 setHuddleTab("create");
                 setShowHuddle(true);
@@ -455,7 +687,7 @@ function ChatWindow({
               value={huddleLink}
               onChange={(e) => setHuddleLink(e.target.value)}
               placeholder="e.g. http://localhost:5173/huddles?join=xyz"
-              className="w-full rounded-lg border border-white/10 bg-[#111827] px-3 py-2 outline-none focus:border-accent text-sm text-white"
+              className="w-full rounded-lg border border-white/10 bg-[#101418] px-3 py-2 outline-none focus:border-accent text-sm text-white"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleShareHuddle();
               }}
@@ -472,24 +704,85 @@ function ChatWindow({
       </Modal>
 
       {/* MESSAGES */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-2 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar">
 
-        {!selectedUser ? (
-          <div className="text-center text-gray-400 mt-20">
-            Select a user to start chatting
+        {!hasConversation ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <div className="w-14 h-14 rounded-xl bg-[#11161b] border border-white/10 flex items-center justify-center text-white/30 mb-4">
+              <MessageSquare size={28} strokeWidth={1.5} />
+            </div>
+            <p className="text-white/70 font-medium">Select a channel or conversation</p>
+            <p className="text-sm text-white/40 mt-1 max-w-sm">
+              Choose a channel under Channels or a person under Messages to start chatting.
+            </p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-400 mt-20">
-            Say hello 👋 to {selectedUser.username}
+          <div className="flex flex-col items-center justify-center min-h-[280px] text-center px-6">
+            {selectedChannel || channelId ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-[#11161b] border border-white/10 flex items-center justify-center text-white/50 mb-5">
+                  <Hash size={32} strokeWidth={1.75} />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Welcome to #{channelDisplayName}!
+                </h2>
+                <p className="text-sm text-white/50 max-w-md">
+                  This is the start of the #{channelDisplayName} channel. Say hello and share updates with your team.
+                </p>
+              </>
+            ) : selectedUser?._id === user?._id ? (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-accent/20 border border-accent/30 flex items-center justify-center text-2xl font-bold text-accent mb-5 overflow-hidden">
+                  {headerAvatarUrl ? (
+                    <img
+                      src={headerAvatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    user?.username?.[0]?.toUpperCase()
+                  )}
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {user?.username}{" "}
+                  <span className="text-sm text-white/40 font-normal">(you)</span>
+                </h2>
+                <p className="text-sm text-white/50 max-w-md leading-relaxed">
+                  This is your space. Draft messages, list to-dos, or keep links handy.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-[#11161b] border border-white/10 flex items-center justify-center text-2xl font-bold text-accent mb-5 overflow-hidden">
+                  {headerAvatarUrl ? (
+                    <img
+                      src={headerAvatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    (selectedUser?.username?.[0] || "?").toUpperCase()
+                  )}
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">
+                  {selectedUser?.username}
+                </h2>
+                <p className="text-sm text-white/50">
+                  This is the beginning of your direct message history.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           messages.map((m, i) => (
             <MessageBubble
-              key={i}
+              key={`${m._id || m.createdAt || i}-${i}`}
               message={m}
               previousMessage={messages[i - 1]}
               currentUser={user}
               onReply={(msg) => setActiveThread(msg)}
+              onDelete={handleDeleteMessage}
+              onRetry={handleRetry}
             />
           ))
         )}
@@ -498,23 +791,31 @@ function ChatWindow({
       </div>
 
       {/* INPUT */}
-      <div className="p-4 z-10 bg-panel backdrop-blur-md border border-white/5 rounded-xl shadow-xl rounded-none border-x-0 border-b-0 border-t-white/5 bg-sidebar/50">
+      <div className="shrink-0 px-4 pb-4 pt-2 border-t border-white/10 bg-[#101418]">
+        <div className="rounded-xl border border-white/10 bg-[#101418] overflow-hidden">
         <MessageInput
           onSend={handleSend}
           onTypingChange={handleTypingChange}
-          disabled={!room}
+          disabled={!room || !hasConversation}
           users={users}
           currentUser={user}
           placeholder={
-            selectedUser
-              ? room
-                ? `Message ${selectedUser.username}`
-                : "Connecting..."
-              : "Select a user first"
+            !hasConversation
+              ? "Select a channel or conversation"
+              : selectedChannel || channelId
+              ? `Message #${selectedChannel?.name || "channel"}`
+              : selectedUser
+              ? dmLayout && selectedUser._id === user?._id
+                ? "Jot something down"
+                : `Message ${selectedUser.username}`
+              : "Type a message"
           }
           draftKey={room ? `draft_${room}` : null}
-          draftContext={{ title: selectedChannel ? selectedChannel.name : selectedUser ? selectedUser.username : "Draft" }}
+          draftContext={{
+            title: selectedChannel?.name || selectedUser?.username || "Draft",
+          }}
         />
+        </div>
 
         {typingUsers.length > 0 && (
           <div className="text-xs text-gray-400 mt-2">

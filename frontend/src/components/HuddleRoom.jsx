@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Headphones, X, Camera, MicOff } from "lucide-react";
 
 export default function HuddleRoom({ room, onClose, name }) {
   const localVideoRef = useRef(null);
@@ -47,16 +48,16 @@ export default function HuddleRoom({ room, onClose, name }) {
   };
 
   return (
-    <div className="absolute inset-0 z-50 bg-[#0b1220]/90 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-white animate-fade-in shadow-2xl">
+    <div className="absolute inset-0 z-50 bg-[#101418]/90 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-white animate-fade-in shadow-2xl">
       <div className="absolute top-6 left-6 font-bold text-lg flex items-center gap-2">
-        <span className="text-2xl">🎧</span> Huddle: {name || "Room"}
+        <Headphones size={22} strokeWidth={2} /> Huddle: {name || "Room"}
       </div>
       
       <button 
         onClick={onClose}
         className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center font-bold transition-transform active:scale-95"
       >
-        ✕
+        <X size={20} strokeWidth={2} />
       </button>
 
       <div className="relative w-full max-w-4xl aspect-video bg-black/50 border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center mb-10">
@@ -71,14 +72,14 @@ export default function HuddleRoom({ room, onClose, name }) {
         {vidMuted && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-24 h-24 bg-accent/30 rounded-full flex items-center justify-center text-4xl shadow-xl border border-white/5 opacity-80 backdrop-blur-sm">
-              📷
+              <Camera size={40} strokeWidth={1.75} className="opacity-80" />
             </div>
           </div>
         )}
 
         <div className="absolute bottom-6 left-6 bg-black/60 px-3 py-1.5 rounded-lg text-sm font-semibold backdrop-blur-md flex items-center gap-2">
           <span>You</span>
-          {micMuted && <span className="text-red-400">🔇</span>}
+          {micMuted && <MicOff size={14} className="text-red-400" strokeWidth={2} />}
         </div>
         
         {error && (

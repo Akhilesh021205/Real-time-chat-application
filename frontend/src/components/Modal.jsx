@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { X } from "lucide-react";
 
 function Modal({ open, title, children, onClose, footer }) {
   useEffect(() => {
@@ -21,7 +22,7 @@ function Modal({ open, title, children, onClose, footer }) {
         aria-label="Close modal"
       />
 
-      <div className="relative w-full max-w-lg rounded-xl border border-white/10 bg-[#0b1220] text-white shadow-2xl">
+      <div className="relative w-full max-w-lg rounded-xl border border-white/10 bg-[#101418] text-white shadow-2xl">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between gap-3">
           <div className="font-semibold">{title}</div>
           <button
@@ -30,7 +31,7 @@ function Modal({ open, title, children, onClose, footer }) {
             className="text-white/60 hover:text-white"
             aria-label="Close"
           >
-            ✕
+            <X size={18} strokeWidth={2} />
           </button>
         </div>
 

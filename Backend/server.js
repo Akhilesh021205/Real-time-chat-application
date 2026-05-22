@@ -10,6 +10,7 @@ import passport from "./config/passport.js";
 import { connectDB } from "./config/db.js";
 import { verifyToken } from "./middleware/verifyToken.js";
 import { Channel } from "./Models/channel.js";
+import { User } from "./Models/user.js";
 
 import messageAPI from "./APIs/messageAPI.js";
 import dmAPI from "./APIs/dmAPI.js";
@@ -17,6 +18,12 @@ import channelAPI from "./APIs/channelAPI.js";
 import workspaceAPI from "./APIs/workspaceAPI.js";
 import userAPI from "./APIs/userAPI.js";
 import botAPI from "./APIs/botAPI.js";
+import canvasAPI from "./APIs/CanvasAPI.js";
+import customAPI from "./APIs/UserCustomAPI.js";
+import reminderAPI from "./APIs/ReminderAPI.js";
+import notificationAPI from "./APIs/notificationAPI.js";
+import activityAPI from "./APIs/activityAPI.js";
+import fileAPI from "./APIs/fileAPI.js";
 
 import {
   registerUser,
@@ -25,8 +32,8 @@ import {
   getCurrentUser,
   googleAuthRedirect,
   googleAuthCallback,
-  forgotPassword,
-  resetPassword,
+  sendPasswordResetOTP,
+  verifyOTPAndReset,
 } from "./controllers/authController.js";
 
 dotenv.config();
@@ -64,7 +71,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Static folder for uploads
+// Static folder for uploads (legacy support for local files before Cloudinary migration)
 import path from "path";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
@@ -78,6 +85,12 @@ app.use("/api/channels", channelAPI);
 app.use("/api/workspaces", workspaceAPI);
 app.use("/api/users", userAPI);
 app.use("/api/bot", botAPI);
+app.use("/api/canvas", canvasAPI);
+app.use("/api/custom", customAPI);
+app.use("/api/reminders", reminderAPI);
+app.use("/api/notifications", notificationAPI);
+app.use("/api/activity", activityAPI);
+app.use("/api/files", fileAPI);
 
 /* ================= AUTH ================= */
 app.post("/api/auth/register", registerUser);
@@ -89,11 +102,22 @@ app.get("/api/auth/me", verifyToken, getCurrentUser);
 app.get("/api/auth/google", googleAuthRedirect);
 app.get("/api/auth/google/callback", googleAuthCallback);
 
-/* ================= PASSWORD ================= */
-app.post("/api/auth/forgot-password", forgotPassword);
-app.post("/api/auth/reset-password/:token", resetPassword);
+/* ================= PASSWORD RESET (OTP) ================= */
+app.post("/api/auth/reset-password", async (req, res, next) => {
+  // Simple password reset (no OTP). Accepts { email, newPassword } and updates the user's password.
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) return res.status(400).json({ message: "Email and newPassword are required" });
+    const { resetPassword } = await import('./controllers/authController.js');
+    return resetPassword(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ================= SOCKET LOGIC ================= */
+const onlineUsers = new Map(); // socket.id -> userId
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -107,23 +131,47 @@ io.on("connection", (socket) => {
     return isOwner || isMember;
   };
 
+  /* ✅ GO ONLINE (Presence) */
+  socket.on("goOnline", async ({ userId }) => {
+    if (!userId) return;
+    onlineUsers.set(socket.id, userId);
+    socket.join(`user:${userId}`);
+    try {
+      const existing = await User.findById(userId).select("status");
+      const keepManual =
+        existing?.status === "away" || existing?.status === "dnd";
+      const nextStatus = keepManual ? existing.status : "active";
+
+      if (!keepManual) {
+        await User.findByIdAndUpdate(userId, { status: nextStatus });
+      }
+      io.emit("userStatusChanged", { userId, status: nextStatus });
+      console.log(`User ${userId} presence: ${nextStatus}`);
+    } catch (err) {
+      console.error("goOnline error", err);
+    }
+  });
+
   /* ✅ JOIN CHANNEL (Slack-style) */
-  socket.on("joinChannel", async ({ channelId, userId }) => {
-    if (!channelId || !userId) return;
+  socket.on("joinChannel", async (data) => {
+    const { channelId, room, userId } = typeof data === 'string' ? { channelId: data } : data;
+    const targetChannelId = channelId || room;
+    if (!targetChannelId || !userId) return;
 
     try {
-      const channel = await Channel.findById(channelId);
+      const channel = await Channel.findById(targetChannelId);
       if (!isMemberOfChannel(channel, userId)) return;
 
-      socket.join(channelId);
-      console.log(`Joined channel: ${channelId}`);
+      socket.join(targetChannelId);
+      console.log(`Joined channel: ${targetChannelId}`);
     } catch (err) {
       console.error("joinChannel error", err);
     }
   });
 
   /* ✅ LEAVE CHANNEL */
-  socket.on("leaveChannel", (channelId) => {
+  socket.on("leaveChannel", (data) => {
+    const channelId = typeof data === 'string' ? data : data?.channelId;
     if (!channelId) return;
     socket.leave(channelId);
     console.log(`Left channel: ${channelId}`);
@@ -133,11 +181,17 @@ io.on("connection", (socket) => {
   socket.on("joinDM", ({ room, userId, username }) => {
     if (!room || !userId) return;
 
-    const parts = String(room).split("_");
-    if (parts.length !== 2 || !parts.includes(userId)) return;
+    const roomStr = String(room);
+    const uid = String(userId);
+    const parts = roomStr.split("_");
+    if (parts.length !== 2) return;
 
-    socket.join(room);
-    console.log(`${username} joined DM: ${room}`);
+    const isSlackbotRoom = parts.includes("slackbot");
+    const isParticipant = parts.includes(uid);
+    if (!isSlackbotRoom && !isParticipant) return;
+
+    socket.join(roomStr);
+    console.log(`${username} joined DM: ${roomStr}`);
   });
 
   /* ✅ LEAVE DM */
@@ -145,6 +199,13 @@ io.on("connection", (socket) => {
     if (!room) return;
     socket.leave(room);
     console.log(`${username} left DM: ${room}`);
+  });
+
+  /* ✅ JOIN WORKSPACE (for global team notifications like new channels) */
+  socket.on("joinWorkspace", ({ workspaceId }) => {
+    if (!workspaceId) return;
+    socket.join(workspaceId);
+    console.log(`User joined workspace room: ${workspaceId}`);
   });
 
   /* ✅ TYPING (CHANNEL OR DM) */
@@ -156,14 +217,24 @@ io.on("connection", (socket) => {
     socket.to(room).emit("stop_typing", { username });
   });
 
-  /* ❌ REMOVE THIS (conflicts with DB messages)
-  socket.on("message", (msg) => {
-    io.to(msg.room).emit("message", msg);
-  });
-  */
-
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
+    const userId = onlineUsers.get(socket.id);
+    if (userId) {
+      onlineUsers.delete(socket.id);
+      
+      // Check if user has other active connections before marking offline
+      const otherSockets = Array.from(onlineUsers.values()).filter(id => id === userId);
+      if (otherSockets.length === 0) {
+        try {
+          await User.findByIdAndUpdate(userId, { status: "offline" });
+          io.emit("userStatusChanged", { userId, status: "offline" });
+          console.log(`User ${userId} is now offline`);
+        } catch (err) {
+          console.error("disconnect presence error", err);
+        }
+      }
+    }
   });
 });
 
@@ -173,6 +244,14 @@ const PORT = process.env.PORT || 4000;
 (async () => {
   try {
     await connectDB();
+
+    // Reset all statuses to offline on startup to prevent "stuck" active users
+    try {
+      await User.updateMany({}, { status: "offline" });
+      console.log("All user statuses reset to offline.");
+    } catch (err) {
+      console.error("Status reset error", err);
+    }
 
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

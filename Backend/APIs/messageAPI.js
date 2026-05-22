@@ -6,6 +6,7 @@ import {
   replyToMessage,
   getThreadReplies,
   editMessage,
+  deleteMessage,
   toggleReaction,
   togglePin,
   toggleSave,
@@ -16,29 +17,34 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    try {
-      fs.mkdirSync("uploads", { recursive: true });
-    } catch {
-      // ignore; multer will surface write errors if any
-    }
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
+import { v2 as cloudinary } from "cloudinary";
 
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const router = express.Router();
 
 // Upload route
-router.post("/upload", verifyToken, upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ fileUrl });
+router.post("/upload", verifyToken, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    // Convert buffer to Data URI
+    const b64 = Buffer.from(req.file.buffer).toString("base64");
+    const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+    
+    // Upload to Cloudinary
+    const cldRes = await cloudinary.uploader.upload(dataURI, {
+      resource_type: "auto",
+      folder: "slack_clone_messages",
+    });
+
+    const fileUrl = cldRes.secure_url;
+    res.json({ fileUrl });
+  } catch (err) {
+    console.error("Cloudinary upload error:", err);
+    res.status(500).json({ message: "Error uploading file" });
+  }
 });
 
 router.get("/thread/:messageId", verifyToken, getThreadReplies);
@@ -51,6 +57,7 @@ router.get("/dm/:receiverId", verifyToken, getDMMessages);
 router.post("/send", verifyToken, sendMessage);
 router.get("/:channelId", verifyToken, getChannelMessages);
 router.put("/edit/:messageId", verifyToken, editMessage);
+router.delete("/delete/:messageId", verifyToken, deleteMessage);
 router.post("/react/:messageId", verifyToken, toggleReaction);
 router.post("/pin/:messageId", verifyToken, togglePin);
 router.post("/save/:messageId", verifyToken, toggleSave);

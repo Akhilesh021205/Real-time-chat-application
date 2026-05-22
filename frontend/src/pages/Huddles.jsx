@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Mic, Headphones } from "lucide-react";
 import Sidebar from "../components/Sidebar.jsx";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -34,7 +35,7 @@ export default function Huddles() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b1220] text-white overflow-hidden">
+    <div className="flex h-screen bg-[#101418] text-white overflow-hidden">
       <Sidebar 
         users={users} 
         channels={channels} 
@@ -42,10 +43,10 @@ export default function Huddles() {
         onSelectArea={setActiveArea} 
       />
 
-      <main className="flex-1 flex flex-col bg-[#101826] relative">
+      <main className="flex-1 flex flex-col bg-[#101418] relative">
         <header className="h-16 border-b border-white/10 px-8 flex items-center justify-between bg-panel/30 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🎙️</span>
+            <Mic size={24} className="text-accent" />
             <h1 className="text-xl font-bold tracking-tight text-white/90">Huddles</h1>
           </div>
         </header>
@@ -55,8 +56,8 @@ export default function Huddles() {
             {/* Hero Section */}
             <div className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 border border-white/10 rounded-3xl p-10 text-center space-y-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center text-5xl mx-auto shadow-2xl border border-white/5 animate-bounce-subtle">
-                🎧
+              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mx-auto shadow-2xl border border-white/5 animate-bounce-subtle">
+                <Headphones size={48} className="text-accent" strokeWidth={1.75} />
               </div>
               <div className="space-y-2">
                 <h2 className="text-3xl font-extrabold text-white">Start a meeting</h2>

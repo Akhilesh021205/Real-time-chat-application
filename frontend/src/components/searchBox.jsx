@@ -44,7 +44,7 @@ function SearchBox({ onSelectArea }) {
         { withCredentials: true }
       );
 
-      navigate(`/chat/${userId}`);
+      navigate(`/dms/${userId}`);
       onSelectArea("chat");
 
     } catch (err) {

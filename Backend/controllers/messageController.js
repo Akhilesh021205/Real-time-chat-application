@@ -1,5 +1,27 @@
 import Message from "../Models/Message.js";
 import { Channel } from "../Models/channel.js";
+import { Workspace } from "../Models/workspace.js";
+import {User} from "../Models/user.js";
+
+const sharesWorkspace = async (userIdA, userIdB) => {
+  if (!userIdA || !userIdB) return false;
+  
+  // Find all workspaces where user A is a member
+  const workspacesA = await Workspace.find({
+    $or: [{ owner: userIdA }, { members: userIdA }, { admins: userIdA }]
+  }).select("_id sharedWorkspaces");
+
+  const workspaceIdsA = workspacesA.map(w => w._id.toString());
+  const sharedWithA = workspacesA.flatMap(w => w.sharedWorkspaces.map(id => id.toString()));
+
+  // Find if user B is in any of A's workspaces OR in any workspace shared with A's workspaces
+  const commonWorkspace = await Workspace.findOne({
+    _id: { $in: [...workspaceIdsA, ...sharedWithA] },
+    $or: [{ owner: userIdB }, { members: userIdB }, { admins: userIdB }]
+  });
+
+  return !!commonWorkspace;
+};
 
 const isChannelMember = (channel, userId) => {
   if (!channel) return false;
@@ -33,6 +55,23 @@ export const sendMessage = async (req, res, next) => {
       roomId = buildRoomId(req.userId, receiverId);
       if (!roomId) {
         return res.status(400).json({ message: "Invalid receiver" });
+      }
+
+      const isSelfDm =
+        receiverId !== "slackbot" &&
+        receiverId.toString() === req.userId.toString();
+
+      // Check workspace isolation (skip for notes-to-self)
+      if (receiverId !== "slackbot" && !isSelfDm) {
+          const areConnected = await sharesWorkspace(req.userId, receiverId);
+          if (!areConnected) {
+            // Allow a development-only bypass to ease local testing when users aren't in the same workspace
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn(`Dev bypass: allowing DM from ${req.userId} to ${receiverId} (not in same workspace)`);
+            } else {
+              return res.status(403).json({ message: "You are not in the same workspace as this user" });
+            }
+          }
       }
 
       messagePayload = {
@@ -84,6 +123,22 @@ export const getDMMessages = async (req, res, next) => {
     const roomId = buildRoomId(senderId, receiverId);
     if (!roomId) {
       return res.status(400).json({ message: "Invalid receiverId" });
+    }
+
+    const isSelfDm =
+      receiverId !== "slackbot" &&
+      receiverId.toString() === senderId.toString();
+
+    // Check workspace isolation (skip for notes-to-self)
+    if (receiverId !== "slackbot" && !isSelfDm) {
+      const areConnected = await sharesWorkspace(senderId, receiverId);
+      if (!areConnected) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Dev bypass: allowing DM fetch for ${senderId} -> ${receiverId} (not in same workspace)`);
+        } else {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
     }
 
     const messages = await Message.find({ roomId })
@@ -240,7 +295,7 @@ export const togglePin = async (req, res, next) => {
   }
 };
 
-import { User } from "../Models/user.js";
+
 
 /* TOGGLE SAVE MESSAGE */
 export const toggleSave = async (req, res, next) => {
@@ -277,6 +332,38 @@ export const markRoomAsRead = async (req, res, next) => {
     );
 
     res.json({ message: "Marked as read" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* DELETE MESSAGE */
+export const deleteMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.sender.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: "Not permitted to delete this message" });
+    }
+
+    const roomId = message.roomId || message.channel?.toString();
+    await Message.findByIdAndDelete(messageId);
+
+    await User.updateOne(
+      { _id: req.userId },
+      { $pull: { savedMessages: messageId } }
+    );
+
+    if (roomId && req.io) {
+      req.io.to(roomId).emit("messageDeleted", { messageId: messageId.toString() });
+    }
+
+    res.json({ message: "Message deleted", messageId: messageId.toString() });
   } catch (err) {
     next(err);
   }

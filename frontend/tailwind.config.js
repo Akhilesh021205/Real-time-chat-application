@@ -8,6 +8,8 @@ export default {
       },
       colors: {
         workspace: '#0a0a0b',
+        app: '#0a0a0b',
+        primary: '#f8fafc',
         sidebar: 'rgba(20, 20, 22, 0.7)',
         accent: '#5e43f3',
         glass: {

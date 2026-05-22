@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
+import {
+  MessageSquare,
+  Smile,
+  Pencil,
+  Trash2,
+  Pin,
+  Bookmark,
+} from "lucide-react";
+import AttachmentPreview from "./AttachmentPreview.jsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -9,7 +18,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 const markdownSchema = {
   ...defaultSchema,
   tagNames: Array.from(
-    new Set([...(defaultSchema.tagNames || []), "u"])
+    new Set([...(defaultSchema.tagNames || []), "u", "strong", "em"])
   ),
   attributes: {
     ...(defaultSchema.attributes || {}),
@@ -17,7 +26,7 @@ const markdownSchema = {
   },
 };
 
-function MessageBubble({ message, previousMessage, currentUser, onReply }) {
+function MessageBubble({ message, previousMessage, currentUser, onReply, onDelete, onRetry }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || message.content || "");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -38,7 +47,17 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
   const attachment = message.attachment;
 
   const senderId = message.sender?._id || message.sender;
-  const canEdit = currentUser && currentUser._id === senderId;
+  const messageId = message._id ? String(message._id) : null;
+  const canEdit =
+    currentUser &&
+    senderId &&
+    String(currentUser._id) === String(senderId);
+  const canDelete =
+    canEdit &&
+    messageId &&
+    !messageId.startsWith("slackbot_") &&
+    !messageId.startsWith("msg_") &&
+    !messageId.startsWith("bot_");
 
   const handleSaveEdit = async () => {
     if (!editText.trim() || editText === text) {
@@ -79,6 +98,21 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
       );
     } catch (error) {
       console.error("Failed to pin message:", error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!canDelete) return;
+    if (!window.confirm("Delete this message permanently?")) return;
+    try {
+      await axios.delete(
+        `http://localhost:4000/api/messages/delete/${message._id}`,
+        { withCredentials: true }
+      );
+      onDelete?.(message._id);
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      alert(error.response?.data?.message || "Failed to delete message.");
     }
   };
 
@@ -146,8 +180,8 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
 
         {/* PIN INDICATOR */}
         {message.isPinned && (
-          <div className="text-[10px] text-accent font-semibold uppercase tracking-wider mb-0.5 mt-0.5">
-            📌 Pinned
+          <div className="text-[10px] text-accent font-semibold uppercase tracking-wider mb-0.5 mt-0.5 flex items-center gap-1">
+            <Pin size={12} strokeWidth={2} /> Pinned
           </div>
         )}
 
@@ -190,6 +224,11 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
               ]}
               components={{
                 p: ({ children }) => <p className="leading-6">{children}</p>,
+                strong: ({ children }) => (
+                  <strong className="font-bold text-white">{children}</strong>
+                ),
+                em: ({ children }) => <em className="italic">{children}</em>,
+                u: ({ children }) => <u className="underline">{children}</u>,
                 a: ({ href, children }) => (
                   <a
                     href={href}
@@ -223,12 +262,27 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
             {/* ATTACHMENT DISPLAY */}
             {attachment && (
               <div className="mt-2">
-                {attachment.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
-                  <img src={`http://localhost:4000${attachment}`} alt="attachment" className="max-w-xs rounded" />
-                ) : (
-                  <a href={`http://localhost:4000${attachment}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                    📁 Download Attachment
-                  </a>
+                <AttachmentPreview attachment={attachment} />
+              </div>
+            )}
+
+            {/* Pending / Failed indicator */}
+            {message.pending && (
+              <div className="mt-2 text-xs text-yellow-300">Sending...</div>
+            )}
+            {message.failed && (
+              <div className="mt-2 text-xs text-rose-400 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span>Failed to send.</span>
+                  <button
+                    onClick={() => onRetry && onRetry(message._id)}
+                    className="text-xs text-white bg-rose-600/80 px-2 py-1 rounded-md"
+                  >
+                    Retry
+                  </button>
+                </div>
+                {message.failedReason && (
+                  <div className="text-[11px] text-rose-300">{message.failedReason}</div>
                 )}
               </div>
             )}
@@ -242,7 +296,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
               const hasReacted = currentUser && r.users.includes(currentUser._id);
               return (
                 <button
-                  key={i}
+                  key={`${r.emoji || i}-${i}`}
                   onClick={() => handleToggleReaction(r.emoji)}
                   className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border transition-all ${
                     hasReacted 
@@ -269,7 +323,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
             className="text-gray-400 hover:text-white hover:bg-white/10 p-1.5 rounded-md text-sm transition-colors"
             title="Reply in thread"
           >
-            💬
+            <MessageSquare size={16} strokeWidth={2} />
           </button>
 
           {/* EMOJI BUTTON */}
@@ -279,7 +333,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
               className="text-gray-400 hover:text-white hover:bg-white/10 p-1.5 rounded-md text-sm transition-colors"
               title="Add reaction"
             >
-              😊
+              <Smile size={16} strokeWidth={2} />
             </button>
             {showEmojiPicker && (
               <div className="absolute top-10 right-0 z-50 shadow-xl">
@@ -302,7 +356,16 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
               className="text-gray-400 hover:text-white hover:bg-white/10 p-1.5 rounded-md text-sm transition-colors"
               title="Edit message"
             >
-              ✏️
+              <Pencil size={16} strokeWidth={2} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-md text-sm transition-colors"
+              title="Delete message"
+            >
+              <Trash2 size={16} strokeWidth={2} />
             </button>
           )}
           <button
@@ -310,14 +373,14 @@ function MessageBubble({ message, previousMessage, currentUser, onReply }) {
             className="text-gray-400 hover:text-white hover:bg-white/10 p-1.5 rounded-md text-sm transition-colors"
             title={message.isPinned ? "Unpin message" : "Pin message"}
           >
-            📌
+            <Pin size={16} strokeWidth={2} />
           </button>
           <button
             onClick={handleToggleSave}
             className={`hover:bg-white/10 p-1.5 rounded-md text-sm transition-colors ${isSaved ? "text-accent" : "text-gray-400 hover:text-white"}`}
             title={isSaved ? "Unsave message" : "Save message"}
           >
-            🔖
+            <Bookmark size={16} strokeWidth={2} />
           </button>
         </div>
       )}

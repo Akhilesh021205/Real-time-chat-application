@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 const channelSchema = new mongoose.Schema({
   name: {
@@ -36,9 +37,21 @@ const channelSchema = new mongoose.Schema({
     default: false,
   },
 
+  isPrivate: {
+    type: Boolean,
+    default: false,
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+
+  inviteCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    default: () => crypto.randomBytes(4).toString('hex').toUpperCase()
   },
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Star } from "lucide-react";
 import Sidebar from "../components/Sidebar.jsx";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -40,7 +41,7 @@ export default function Starred() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b1220] text-white">
+    <div className="flex h-screen bg-[#101418] text-white">
       <Sidebar 
         users={users} 
         channels={channels} 
@@ -48,10 +49,10 @@ export default function Starred() {
         onSelectArea={setActiveArea} 
       />
 
-      <main className="flex-1 flex flex-col bg-[#101826] relative">
+      <main className="flex-1 flex flex-col bg-[#101418] relative">
         <header className="h-16 border-b border-white/10 px-8 flex items-center justify-between bg-panel/30 backdrop-blur-md">
           <div className="flex items-center gap-3">
-             <span className="text-2xl text-yellow-500">⭐</span>
+             <Star size={24} className="text-yellow-500" fill="currentColor" strokeWidth={2} />
              <h1 className="text-xl font-bold tracking-tight text-white/90">Starred Items</h1>
           </div>
         </header>
@@ -65,7 +66,7 @@ export default function Starred() {
 
               {starredItems.length === 0 ? (
                 <div className="py-20 text-center space-y-4">
-                  <div className="text-6xl text-gray-700 opacity-30">⭐</div>
+                  <Star size={64} className="mx-auto text-gray-700 opacity-30" strokeWidth={1.5} />
                   <div className="text-gray-500 font-medium">No items starred yet. Star a channel or DM to find it here quickly.</div>
                 </div>
               ) : (
@@ -74,7 +75,9 @@ export default function Starred() {
                     <div 
                       key={item.id}
                       className="group flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all hover:scale-[1.01] cursor-pointer shadow-lg"
-                      onClick={() => navigate(`/chat/${item.id}`)}
+                      onClick={() =>
+                        navigate(item.type === "channel" ? `/chat/${item.id}` : `/dms/${item.id}`)
+                      }
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-xl ${item.type === 'channel' ? 'bg-indigo-600/30' : 'bg-pink-600/30'}`}>

@@ -1,19 +1,14 @@
 import express from "express";
-import { User } from "../Models/user.js";
-import { searchUsers } from "../controllers/userController.js";
+import { getUsers, searchUsers } from "../controllers/userController.js";
+import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
+// Apply verifyToken to all routes
+router.use(verifyToken);
 
-router.get("/", async (req, res) => {
-  try {
-    const users = await User.find().select("-password");
-
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+/* GET USERS (Shared Workspace Members) */
+router.get("/", getUsers);
 
 /* SEARCH USERS */
 router.get("/search", searchUsers);

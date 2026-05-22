@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema({
     default:""
   },
 
+  aboutMe:{
+    type:String,
+    default:""
+  },
+
   googleId:{
     type:String
   },
@@ -33,6 +38,14 @@ const userSchema = new mongoose.Schema({
 
   resetPasswordExpires:{
     type:Date
+  },
+
+  resetOTP: {
+    type: String,
+  },
+
+  resetOTPExpires: {
+    type: Date,
   },
 
   savedMessages: [
@@ -46,7 +59,33 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["active", "away", "dnd", "offline"],
     default: "offline",
-  }
+  },
+
+  customStatus: {
+    text: { type: String, default: "" },
+    emoji: { type: String, default: "" },
+  },
+
+  starredChannels: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Channel",
+    },
+  ],
+
+  starredDMs: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+
+  sidebarSections: [
+    {
+      name: { type: String, required: true },
+      items: [{ type: String }], // Array of IDs (channels or user IDs)
+    },
+  ],
 
 },{ timestamps:true })
 

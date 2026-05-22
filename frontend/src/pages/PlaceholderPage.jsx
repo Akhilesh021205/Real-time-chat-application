@@ -33,7 +33,7 @@ function PlaceholderPage({ title, description, icon }) {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[#0b1220] text-white">
+    <div className="flex h-screen bg-[#101418] text-white">
       <Sidebar
         users={users}
         channels={channels}
@@ -43,7 +43,7 @@ function PlaceholderPage({ title, description, icon }) {
         refreshChannels={fetchChannels}
       />
 
-      <main className="flex-1 min-w-0 flex flex-col bg-[#101826] items-center justify-center text-center p-8">
+      <main className="flex-1 min-w-0 flex flex-col bg-[#101418] items-center justify-center text-center p-8">
         <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center text-5xl mb-6 shadow-2xl border border-white/10">
           {icon}
         </div>

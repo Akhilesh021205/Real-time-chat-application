@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { X } from "lucide-react";
 import axios from "axios";
 import { socket } from "../socket/socket";
 import MessageBubble from "./MessageBubble.jsx";
@@ -17,7 +18,17 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
           `http://localhost:4000/api/messages/thread/${parentMessage._id}`,
           { withCredentials: true }
         );
-        setReplies(res.data);
+        // dedupe replies
+        const deduped = [];
+        const seen = new Set();
+        (res.data || []).forEach((r) => {
+          const id = r._id || r.createdAt || JSON.stringify(r);
+          if (!seen.has(id)) {
+            seen.add(id);
+            deduped.push(r);
+          }
+        });
+        setReplies(deduped);
       } catch (err) {
         console.error("Failed to fetch thread replies", err);
       }
@@ -91,8 +102,8 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
       {/* Header */}
       <div className="px-4 py-3 border-b border-[#1f2937] flex items-center justify-between">
         <h2 className="font-bold text-lg">Thread</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">
-          ✕
+        <button onClick={onClose} className="text-gray-400 hover:text-white p-1" aria-label="Close thread">
+          <X size={18} strokeWidth={2} />
         </button>
       </div>
 
@@ -110,10 +121,11 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
           </div>
           {replies.map((reply, i) => (
             <MessageBubble
-              key={i}
+              key={`${reply._id || reply.createdAt || i}-${i}`}
               message={reply}
               previousMessage={replies[i - 1]}
               currentUser={currentUser}
+              onRetry={() => {}}
             />
           ))}
           <div ref={listEndRef} />

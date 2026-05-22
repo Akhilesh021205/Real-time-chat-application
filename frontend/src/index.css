@@ -5,8 +5,17 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-app: #0a0a0b;
+    --color-text-primary: #f8fafc;
+  }
+
   body {
-    @apply m-0 bg-workspace text-slate-100 font-sans;
+    margin: 0;
+    background-color: var(--color-app);
+    color: var(--color-text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
     background-image: 
       radial-gradient(circle at 15% 50%, rgba(94, 67, 243, 0.08), transparent 25%),
       radial-gradient(circle at 85% 30%, rgba(45, 212, 191, 0.08), transparent 25%);

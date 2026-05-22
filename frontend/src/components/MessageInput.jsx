@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
+import { Plus, Smile, AtSign, Paperclip, Mic, Send, Link } from "lucide-react";
+import AttachmentPreview from "./AttachmentPreview.jsx";
 
 function MessageInput({
   onSend,
@@ -22,9 +24,14 @@ function MessageInput({
   const [isRecording, setIsRecording] = useState(false);
   const [recordError, setRecordError] = useState("");
   const [audioPreviewUrl, setAudioPreviewUrl] = useState(null);
+  const [showLinkEditor, setShowLinkEditor] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkSelection, setLinkSelection] = useState(null);
+  const [linkError, setLinkError] = useState("");
 
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
+  const linkInputRef = useRef(null);
   const popoverRef = useRef(null);
   const mentionStartRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -46,6 +53,10 @@ function MessageInput({
     setMentionOpen(false);
     setMentionQuery("");
     setMentionIndex(0);
+    setShowLinkEditor(false);
+    setLinkUrl("");
+    setLinkSelection(null);
+    setLinkError("");
     setRecordError("");
     if (audioPreviewUrl) {
       URL.revokeObjectURL(audioPreviewUrl);
@@ -180,15 +191,32 @@ function MessageInput({
     });
   };
 
-  const wrapSelection = (prefix, suffix = prefix) => {
+  const wrapSelection = (prefix, suffix = prefix, placeholderWhenEmpty = "") => {
     const { start, end, selected } = getSelection();
     if (start === end) {
-      replaceRange(start, end, `${prefix}${suffix}`);
+      const inner = placeholderWhenEmpty;
+      replaceRange(start, end, `${prefix}${inner}${suffix}`);
       requestAnimationFrame(() => {
         if (!textareaRef.current) return;
-        const caret = start + prefix.length;
-        textareaRef.current.setSelectionRange(caret, caret);
+        textareaRef.current.focus();
+        if (inner.length > 0) {
+          const selStart = start + prefix.length;
+          const selEnd = selStart + inner.length;
+          textareaRef.current.setSelectionRange(selStart, selEnd);
+        } else {
+          const caret = start + prefix.length;
+          textareaRef.current.setSelectionRange(caret, caret);
+        }
       });
+      return;
+    }
+    if (
+      selected.startsWith(prefix) &&
+      selected.endsWith(suffix) &&
+      selected.length >= prefix.length + suffix.length
+    ) {
+      const inner = selected.slice(prefix.length, selected.length - suffix.length);
+      replaceRange(start, end, inner);
       return;
     }
     replaceRange(start, end, `${prefix}${selected}${suffix}`);
@@ -235,6 +263,44 @@ function MessageInput({
       textareaRef.current.setSelectionRange(caret, caret);
       syncMentionState(next, caret);
     });
+  };
+
+  const openLinkEditor = () => {
+    setLinkSelection(getSelection());
+    setLinkUrl("");
+    setLinkError("");
+    setShowLinkEditor(true);
+    requestAnimationFrame(() => linkInputRef.current?.focus());
+  };
+
+  const closeLinkEditor = () => {
+    setShowLinkEditor(false);
+    setLinkUrl("");
+    setLinkSelection(null);
+    setLinkError("");
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const normalizeUrl = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed) return "";
+    if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  const applyLink = () => {
+    const url = normalizeUrl(linkUrl);
+    if (!url) {
+      setLinkError("Enter a URL");
+      return;
+    }
+
+    const { start, end, selected } = linkSelection || getSelection();
+    replaceRange(start, end, `[${selected || "link"}](${url})`);
+    setShowLinkEditor(false);
+    setLinkUrl("");
+    setLinkSelection(null);
+    setLinkError("");
   };
 
   const insertMention = (username) => {
@@ -387,42 +453,90 @@ function MessageInput({
   }, [draftKey]);
 
   return (
-    <div className="bg-panel backdrop-blur-md border border-white/5 rounded-xl shadow-xl p-3 ring-1 ring-white/5 shadow-2xl relative overflow-visible">
+    <div className="p-3 relative overflow-visible">
 
-      {/* 🔥 TOOLBAR */}
-      <div className="flex items-center gap-3 text-gray-400 text-sm border-b border-white/10 pb-2 mb-2">
-        <button type="button" className="hover:text-white font-bold" onClick={() => wrapSelection("**")}>
+      <div className="flex items-center gap-3 text-white/45 text-sm border-b border-white/10 pb-2 mb-2">
+        <button
+          type="button"
+          className="hover:text-white font-bold"
+          title="Bold (**text**)"
+          onClick={() => wrapSelection("**", "**", "bold text")}
+        >
           B
         </button>
-        <button type="button" className="hover:text-white italic" onClick={() => wrapSelection("*")}>
+        <button
+          type="button"
+          className="hover:text-white italic"
+          title="Italic (*text*)"
+          onClick={() => wrapSelection("*", "*", "italic")}
+        >
           I
         </button>
         <button type="button" className="hover:text-white underline" onClick={() => wrapSelection("<u>", "</u>")}>
           U
         </button>
-        <button
-          type="button"
-          className="hover:text-white"
-          onClick={() => {
-            const { selected } = getSelection();
-            const url = window.prompt("Enter URL");
-            if (!url) return;
-            if (selected) {
-              replaceRange(getSelection().start, getSelection().end, `[${selected}](${url})`);
-            } else {
-              insertAtCursor(`[link](${url})`);
-            }
-          }}
-        >
-          🔗
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            className={`hover:text-white ${showLinkEditor ? "text-white" : ""}`}
+            onClick={showLinkEditor ? closeLinkEditor : openLinkEditor}
+            title="Insert link"
+          >
+            <Link size={16} strokeWidth={2} />
+          </button>
+          {showLinkEditor && (
+            <div className="absolute left-0 top-7 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-white/10 bg-[#101418] p-3 shadow-2xl">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/45 mb-1.5">
+                URL
+              </label>
+              <input
+                ref={linkInputRef}
+                value={linkUrl}
+                onChange={(e) => {
+                  setLinkUrl(e.target.value);
+                  setLinkError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") applyLink();
+                  if (e.key === "Escape") closeLinkEditor();
+                }}
+                placeholder="https://example.com"
+                className="w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-accent/70"
+              />
+              {linkError && (
+                <div className="mt-1.5 text-xs text-red-400">{linkError}</div>
+              )}
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeLinkEditor}
+                  className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={applyLink}
+                  className="rounded-md border border-accent/50 bg-accent px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-accent/20 hover:bg-accent/90"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <button type="button" className="hover:text-white" onClick={() => toggleListPrefix("- ")}>
           • List
         </button>
         <button type="button" className="hover:text-white" onClick={() => toggleListPrefix("1. ")}>
           1.
         </button>
-        <button type="button" className="hover:text-white" onClick={() => wrapSelection("`")}>
+        <button
+          type="button"
+          className="hover:text-white"
+          title="Code"
+          onClick={() => wrapSelection("`", "`", "code")}
+        >
           {`</>`}
         </button>
       </div>
@@ -430,24 +544,11 @@ function MessageInput({
       {/* ATTACHMENT PREVIEW */}
       {attachmentUrl && (
         <div className="mb-2 relative inline-block">
-          {attachmentUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
-            <img
-              src={`http://localhost:4000${attachmentUrl}`}
-              alt="attachment"
-              className="w-20 h-20 object-cover rounded"
-            />
-          ) : audioPreviewUrl ? (
-            <audio controls src={audioPreviewUrl} className="w-80 max-w-full" />
-          ) : (
-            <a
-              href={`http://localhost:4000${attachmentUrl}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline text-sm"
-            >
-              Download attachment
-            </a>
-          )}
+          <AttachmentPreview
+            attachment={attachmentUrl}
+            compact
+            previewUrl={audioPreviewUrl}
+          />
           <button 
             onClick={() => setAttachmentUrl(null)}
             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
@@ -506,7 +607,9 @@ function MessageInput({
       <div className="flex items-center justify-between mt-2 text-gray-400">
 
         <div className="flex items-center gap-3">
-          <button className="hover:text-white">＋</button>
+          <button type="button" className="hover:text-white p-1" title="More">
+            <Plus size={18} strokeWidth={2} />
+          </button>
           <div className="relative" ref={popoverRef}>
             <button
               type="button"
@@ -514,7 +617,7 @@ function MessageInput({
               onClick={() => setShowEmojiPicker((v) => !v)}
               title="Emoji"
             >
-              😊
+              <Smile size={18} strokeWidth={2} />
             </button>
             {showEmojiPicker && (
               <div className="absolute bottom-10 left-0 z-50">
@@ -540,16 +643,18 @@ function MessageInput({
               setMentionOpen(true);
             }}
           >
-            @
+            <AtSign size={18} strokeWidth={2} />
           </button>
           
           {/* FILE UPLOAD */}
           <button 
-            className="hover:text-white"
+            type="button"
+            className="hover:text-white p-1"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
+            title="Attach file"
           >
-            📎
+            <Paperclip size={18} strokeWidth={2} />
           </button>
           <input 
             type="file" 
@@ -568,17 +673,18 @@ function MessageInput({
             disabled={isUploading}
             title={isRecording ? "Stop recording" : "Record audio"}
           >
-            🎤
+            <Mic size={18} strokeWidth={2} />
           </button>
-          {isRecording && <span className="text-xs text-red-400">Recording…</span>}
+          {isRecording && <span className="text-xs text-red-400">Recording...</span>}
         </div>
 
         <button
           onClick={handleSend}
           disabled={disabled || isUploading || isRecording}
-          className="bg-accent hover:bg-accent/90 text-white px-4 py-1.5 rounded-lg shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50 border border-accent/50"
+          className="bg-accent hover:bg-accent/90 text-white p-2 rounded-lg shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50 border border-accent/50 flex items-center justify-center"
+          title="Send"
         >
-          ➤
+          <Send size={18} strokeWidth={2} />
         </button>
       </div>
     </div>
