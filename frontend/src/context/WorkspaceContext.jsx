@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from './AuthContext';
 
 const WorkspaceContext = createContext(null);
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 export const WorkspaceProvider = ({ children }) => {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export const WorkspaceProvider = ({ children }) => {
     }
     console.log(`[WorkspaceContext] fetchWorkspaces started for user: ${user.username} (${user._id})`);
     try {
-      const res = await axios.get("http://localhost:4000/api/workspaces/user", { withCredentials: true });
+      const res = await axios.get(`${API_BASE}/api/workspaces/user`, { withCredentials: true });
       console.log("[WorkspaceContext] API response workspaces count:", res.data.length);
       res.data.forEach((ws, idx) => {
         console.log(`  [${idx}] WS ID: ${ws._id}, Name: ${ws.name}, Owner ID: ${ws.owner?._id || ws.owner}`);
@@ -91,7 +92,7 @@ export const WorkspaceProvider = ({ children }) => {
 
   const createWorkspace = async (name) => {
     try {
-      const res = await axios.post("http://localhost:4000/api/workspaces/create", { name }, { withCredentials: true });
+      const res = await axios.post(`${API_BASE}/api/workspaces/create`, { name }, { withCredentials: true });
       await fetchWorkspaces();
       return res.data;
     } catch (err) {
@@ -101,7 +102,7 @@ export const WorkspaceProvider = ({ children }) => {
 
   const connectWorkspaces = async (workspaceId, targetWorkspaceId) => {
     try {
-      await axios.post("http://localhost:4000/api/workspaces/connect-workspaces", { workspaceId, targetWorkspaceId }, { withCredentials: true });
+      await axios.post(`${API_BASE}/api/workspaces/connect-workspaces`, { workspaceId, targetWorkspaceId }, { withCredentials: true });
       await fetchWorkspaces();
     } catch (err) {
       throw err;
@@ -110,7 +111,7 @@ export const WorkspaceProvider = ({ children }) => {
 
   const deleteWorkspace = async (workspaceId) => {
     try {
-      await axios.delete(`http://localhost:4000/api/workspaces/${workspaceId}`, { withCredentials: true });
+      await axios.delete(`${API_BASE}/api/workspaces/${workspaceId}`, { withCredentials: true });
       // Clear current workspace if we just deleted it
       if (currentWorkspace?._id === workspaceId) {
         setCurrentWorkspace(null);
@@ -126,7 +127,7 @@ export const WorkspaceProvider = ({ children }) => {
 
   const leaveWorkspace = async (workspaceId) => {
     try {
-      await axios.post(`http://localhost:4000/api/workspaces/${workspaceId}/leave`, {}, { withCredentials: true });
+      await axios.post(`${API_BASE}/api/workspaces/${workspaceId}/leave`, {}, { withCredentials: true });
       // Clear current workspace if we just left it
       if (currentWorkspace?._id === workspaceId) {
         setCurrentWorkspace(null);

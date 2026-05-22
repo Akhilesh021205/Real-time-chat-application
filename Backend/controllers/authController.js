@@ -18,6 +18,19 @@ const authCookieOptions = {
   path: "/",
 };
 
+const usernameFromEmail = (email = "") => {
+  const localPart = String(email).split("@")[0].trim();
+  return localPart || "User";
+};
+
+const ensureUsername = async (user) => {
+  if (!user || user.username) return user;
+  const username = usernameFromEmail(user.email);
+  await User.updateOne({ _id: user._id }, { $set: { username } });
+  user.username = username;
+  return user;
+};
+
 /* REGISTER */
 
 export const registerUser = async (req, res) => {
@@ -63,6 +76,7 @@ export const loginUser = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: "User does not exist, please register first" })
     }
+    await ensureUsername(user)
 
     const isMatch = await bcrypt.compare(password, user.password)
 
@@ -106,6 +120,7 @@ export const logoutUser = async (req, res) => {
 
 export const getCurrentUser = async (req, res) => {
   const user = await User.findById(req.userId).select("-password")
+  await ensureUsername(user)
   res.json({ user })
 }
 

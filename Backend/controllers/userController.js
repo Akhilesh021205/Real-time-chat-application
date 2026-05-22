@@ -2,6 +2,12 @@ import { User } from "../Models/user.js";
 import { Workspace } from "../Models/workspace.js";
 import mongoose from "mongoose";
 
+const displayUsername = (user) => {
+  if (user?.username) return user.username;
+  const emailName = String(user?.email || "").split("@")[0].trim();
+  return emailName || "User";
+};
+
 export const getUsers = async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -64,7 +70,10 @@ export const getUsers = async (req, res, next) => {
       _id: { $in: Array.from(memberIds) }
     }).select("-password");
 
-    res.json(users);
+    res.json(users.map((user) => ({
+      ...user.toObject(),
+      username: displayUsername(user),
+    })));
   } catch (err) {
     next(err);
   }
@@ -113,7 +122,10 @@ export const searchUsers = async (req, res, next) => {
 
     const users = await User.find(filter).select("_id username profilePic status email");
 
-    res.json(users);
+    res.json(users.map((user) => ({
+      ...user.toObject(),
+      username: displayUsername(user),
+    })));
   } catch (err) {
     next(err);
   }

@@ -15,6 +15,8 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 const markdownSchema = {
   ...defaultSchema,
   tagNames: Array.from(
@@ -66,7 +68,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
     }
     try {
       await axios.put(
-        `http://localhost:4000/api/messages/edit/${message._id}`,
+        `${API_BASE}/api/messages/edit/${message._id}`,
         { content: editText },
         { withCredentials: true }
       );
@@ -79,7 +81,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
   const handleToggleReaction = async (emojiStr) => {
     try {
       await axios.post(
-        `http://localhost:4000/api/messages/react/${message._id}`,
+        `${API_BASE}/api/messages/react/${message._id}`,
         { emoji: emojiStr },
         { withCredentials: true }
       );
@@ -92,7 +94,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
   const handleTogglePin = async () => {
     try {
       await axios.post(
-        `http://localhost:4000/api/messages/pin/${message._id}`,
+        `${API_BASE}/api/messages/pin/${message._id}`,
         {},
         { withCredentials: true }
       );
@@ -106,7 +108,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
     if (!window.confirm("Delete this message permanently?")) return;
     try {
       await axios.delete(
-        `http://localhost:4000/api/messages/delete/${message._id}`,
+        `${API_BASE}/api/messages/delete/${message._id}`,
         { withCredentials: true }
       );
       onDelete?.(message._id);
@@ -119,7 +121,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
   const handleToggleSave = async () => {
     try {
       await axios.post(
-        `http://localhost:4000/api/messages/save/${message._id}`,
+        `${API_BASE}/api/messages/save/${message._id}`,
         {},
         { withCredentials: true }
       );

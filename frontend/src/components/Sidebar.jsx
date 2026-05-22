@@ -260,7 +260,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
 
     try {
       await axios.post(
-        `http://localhost:4000/api/channels/${channelId}/join`,
+        `${API_BASE}/api/channels/${channelId}/join`,
         {},
         { withCredentials: true }
       );
@@ -288,7 +288,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
     }
     try {
       await axios.post(
-        "http://localhost:4000/api/workspaces/invite",
+        `${API_BASE}/api/workspaces/invite`,
         { email, workspaceId: currentWorkspace._id },
         { withCredentials: true }
       );
@@ -308,7 +308,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
     setCreateError("");
     try {
       await axios.post(
-        "http://localhost:4000/api/channels/create",
+        `${API_BASE}/api/channels/create`,
         { 
           name: newChannelName.trim(),
           workspaceId: currentWorkspace?._id 

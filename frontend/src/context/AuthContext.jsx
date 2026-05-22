@@ -5,6 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const AuthContext = createContext(null);
 
+const isValidUser = (value) => Boolean(value?._id && value?.email && value?.username);
+
 const fetchJson = async (path, options = {}) => {
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
@@ -28,7 +30,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const raw = localStorage.getItem('slackClone.currentUser');
-      return raw ? JSON.parse(raw) : null;
+      const cachedUser = raw ? JSON.parse(raw) : null;
+      return isValidUser(cachedUser) ? cachedUser : null;
     } catch {
       return null;
     }
@@ -41,7 +44,7 @@ export const AuthProvider = ({ children }) => {
     const loadCurrentUser = async () => {
       try {
         const data = await fetchJson('/api/auth/me');
-        setUser(data?.user || null);
+        setUser(isValidUser(data?.user) ? data.user : null);
       } catch {
         setUser(null);
       } finally {
@@ -53,7 +56,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (!user || loading) return;
+    if (!isValidUser(user) || loading) return;
     const pendingInvite = localStorage.getItem("pendingInviteCode");
     if (pendingInvite && !window.location.pathname.startsWith("/join/")) {
       localStorage.removeItem("pendingInviteCode");
@@ -63,7 +66,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     try {
-      if (user) localStorage.setItem('slackClone.currentUser', JSON.stringify(user));
+      if (isValidUser(user)) localStorage.setItem('slackClone.currentUser', JSON.stringify(user));
       else localStorage.removeItem('slackClone.currentUser');
     } catch {}
   }, [user]);
@@ -98,7 +101,7 @@ export const AuthProvider = ({ children }) => {
       body: JSON.stringify({ email, password }),
     });
 
-    if (data?.user) {
+    if (isValidUser(data?.user)) {
       const preserveKeys = [
         "pendingInviteCode",
         "pendingChannelInviteCode",
@@ -172,7 +175,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const setUserProfile = (nextUser) => {
-    if (nextUser) setUser(nextUser);
+    setUser(isValidUser(nextUser) ? nextUser : null);
   };
 
   return (

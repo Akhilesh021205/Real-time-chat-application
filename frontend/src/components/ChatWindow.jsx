@@ -28,6 +28,8 @@ import { useNavigate } from "react-router";
 import { resolveProfilePic } from "./EditProfileModal.jsx";
 import { sameId } from "../utils/ids.js";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function conversationAvatarUrl(person, currentUser) {
   if (!person) return null;
   if (person._id === "slackbot") return "/slackbot-icon.jpg";
@@ -107,10 +109,9 @@ function ChatWindow({
         }
 
         const isDM = !!selectedUser && !channelId;
-        const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
         const endpoint = isDM
-          ? `${API}/api/messages/dm/${selectedUser._id}`
-          : `${API}/api/messages/${channelId}`;
+          ? `${API_BASE}/api/messages/dm/${selectedUser._id}`
+          : `${API_BASE}/api/messages/${channelId}`;
 
         const res = await axios.get(endpoint, { withCredentials: true });
         // Dedupe any accidental duplicate messages by _id
@@ -224,7 +225,7 @@ function ChatWindow({
 
     // Mark messages as read when viewing the room
     if (room && messages.length > 0) {
-      axios.post(`http://localhost:4000/api/messages/read/${room}`, {}, { withCredentials: true }).catch(console.error);
+      axios.post(`${API_BASE}/api/messages/read/${room}`, {}, { withCredentials: true }).catch(console.error);
     }
   }, [messages, room]);
 
@@ -273,7 +274,7 @@ function ChatWindow({
 
       try {
         const res = await axios.post(
-          "http://localhost:4000/api/bot/chat",
+          `${API_BASE}/api/bot/chat`,
           { prompt: text, attachmentUrl, history },
           { withCredentials: true }
         );
@@ -311,7 +312,7 @@ function ChatWindow({
         ? { content: text || "", receiverId: selectedUser._id, attachment: attachmentUrl }
         : { content: text || "", channelId: room, attachment: attachmentUrl };
 
-      const res = await axios.post("http://localhost:4000/api/messages/send", payload, {
+      const res = await axios.post(`${API_BASE}/api/messages/send`, payload, {
         withCredentials: true,
       });
       const sentMessage = res.data;
@@ -359,7 +360,7 @@ function ChatWindow({
         ? { content: msg.content || msg.text || "", receiverId: selectedUser._id, attachment: msg.attachment }
         : { content: msg.content || msg.text || "", channelId: room, attachment: msg.attachment };
 
-      const res = await axios.post("http://localhost:4000/api/messages/send", payload, {
+      const res = await axios.post(`${API_BASE}/api/messages/send`, payload, {
         withCredentials: true,
       });
       const sentMessage = res.data;

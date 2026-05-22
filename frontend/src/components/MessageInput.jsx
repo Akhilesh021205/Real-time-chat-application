@@ -4,6 +4,8 @@ import EmojiPicker from "emoji-picker-react";
 import { Plus, Smile, AtSign, Paperclip, Mic, Send, Link } from "lucide-react";
 import AttachmentPreview from "./AttachmentPreview.jsx";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function MessageInput({
   onSend,
   onTypingChange,
@@ -334,7 +336,7 @@ function MessageInput({
     formData.append("file", file);
 
     try {
-      const res = await axios.post("http://localhost:4000/api/messages/upload", formData, {
+      const res = await axios.post(`${API_BASE}/api/messages/upload`, formData, {
         withCredentials: true,
       });
       setAttachmentUrl(res.data.fileUrl);
@@ -352,7 +354,7 @@ function MessageInput({
       const formData = new FormData();
       formData.append("file", new File([blob], filename, { type: blob.type || "application/octet-stream" }));
       const res = await axios.post(
-        "http://localhost:4000/api/messages/upload",
+        `${API_BASE}/api/messages/upload`,
         formData,
         { withCredentials: true }
       );

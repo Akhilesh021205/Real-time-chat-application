@@ -5,6 +5,8 @@ import { socket } from "../socket/socket";
 import MessageBubble from "./MessageBubble.jsx";
 import MessageInput from "./MessageInput.jsx";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
 function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }) {
   const [replies, setReplies] = useState([]);
   const listEndRef = useRef(null);
@@ -15,7 +17,7 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
     const fetchReplies = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:4000/api/messages/thread/${parentMessage._id}`,
+          `${API_BASE}/api/messages/thread/${parentMessage._id}`,
           { withCredentials: true }
         );
         // dedupe replies
@@ -87,7 +89,7 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
         parentMessageId: parentMessage._id,
       };
 
-      await axios.post("http://localhost:4000/api/messages/reply", payload, {
+      await axios.post(`${API_BASE}/api/messages/reply`, payload, {
         withCredentials: true,
       });
     } catch (err) {
