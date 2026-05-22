@@ -43,25 +43,44 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://real-time-chat-application-frontend-nine.vercel.app",
   process.env.FRONTEND_URL,
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  return origin.endsWith(".vercel.app") || origin.endsWith(".onrender.com");
+};
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error(`CORS blocked origin: ${origin}`));
   },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+  ],
+  optionsSuccessStatus: 200,
 };
 
 /* ================= SOCKET.IO ================= */
 const io = new IOServer(server, {
   cors: {
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      if (!origin || isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Socket.IO CORS blocked origin: ${origin}`));
+    },
     credentials: true,
   },
 });
@@ -73,6 +92,26 @@ app.use((req, res, next) => {
 });
 
 /* ================= MIDDLEWARE ================= */
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    );
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
