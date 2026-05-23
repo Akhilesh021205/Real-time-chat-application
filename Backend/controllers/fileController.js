@@ -1,6 +1,7 @@
 import File from "../Models/File.js";
+import { Readable } from "stream";
 
-import cloudinary from "../config/cloudinary.js";
+import { uploadBufferToCloudinary } from "../config/cloudinary.js";
 
 // Upload a file and save to database
 export const uploadFile = async (req, res) => {
@@ -11,15 +12,7 @@ export const uploadFile = async (req, res) => {
 
     const { workspaceId } = req.body;
     
-    // Convert buffer to Data URI
-    const b64 = Buffer.from(req.file.buffer).toString("base64");
-    const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-    
-    // Upload to Cloudinary
-    const cldRes = await cloudinary.uploader.upload(dataURI, {
-      resource_type: "auto",
-      folder: "slack_clone",
-    });
+    const cldRes = await uploadBufferToCloudinary(req.file, "slack_clone");
 
     const fileUrl = cldRes.secure_url;
 
@@ -104,15 +97,21 @@ export const proxyFile = async (req, res) => {
     }
 
     // Forward relevant headers
-    const contentType = resp.headers.get("content-type") || "application/octet-stream";
+    const upstreamContentType =
+      resp.headers.get("content-type") || "application/octet-stream";
+    const isPdf = parsed.pathname.toLowerCase().split("?")[0].endsWith(".pdf");
+    const contentType = isPdf ? "application/pdf" : upstreamContentType;
     res.setHeader("Content-Type", contentType);
+    if (isPdf) {
+      res.setHeader("Content-Disposition", "inline");
+    }
     const contentLength = resp.headers.get("content-length");
     if (contentLength) res.setHeader("Content-Length", contentLength);
 
     // Stream response body
     const body = resp.body;
     if (!body) return res.status(500).send("No response body from upstream");
-    body.pipe(res);
+    Readable.fromWeb(body).pipe(res);
   } catch (err) {
     console.error("proxyFile error", err);
     res.status(500).json({ message: "Proxy error" });

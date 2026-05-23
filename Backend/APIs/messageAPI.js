@@ -14,10 +14,8 @@ import {
 } from "../controllers/messageController.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 
-import cloudinary from "../config/cloudinary.js";
+import { uploadBufferToCloudinary } from "../config/cloudinary.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -29,15 +27,10 @@ router.post("/upload", verifyToken, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    // Convert buffer to Data URI
-    const b64 = Buffer.from(req.file.buffer).toString("base64");
-    const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-    
-    // Upload to Cloudinary
-    const cldRes = await cloudinary.uploader.upload(dataURI, {
-      resource_type: "auto",
-      folder: "slack_clone_messages",
-    });
+    const cldRes = await uploadBufferToCloudinary(
+      req.file,
+      "slack_clone_messages"
+    );
 
     const fileUrl = cldRes.secure_url;
     res.json({ fileUrl });
