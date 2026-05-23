@@ -154,11 +154,16 @@ For details, refer to:
 - **Frontend documentation**: `frontend/README.md`
 
 ---
-
 ## ✅ Notes / Security Highlights
 
 - JWT stored in an **HttpOnly cookie**
 - Protected routes use token verification middleware
 - Messaging actions require membership/ownership checks
 -messaging actions require membership/ownership checks
+
 ---
+
+## 👥 Contributors
+
+- **Akhilesh** - Original creator ([GitHub](https://github.com/Akhilesh021205))
+- **VinithaSadineni** - Contributor
