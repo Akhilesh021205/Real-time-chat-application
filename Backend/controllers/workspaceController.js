@@ -358,6 +358,20 @@ export const joinWorkspaceByCode = async (req, res, next) => {
   }
 };
 
+export const joinWorkspace = async (req, res, next) => {
+  try {
+    const { inviteCode } = req.params;
+    if (!inviteCode) {
+      return res.status(400).json({ message: "Invite code is required" });
+    }
+
+    req.body = { ...req.body, inviteCode };
+    return joinWorkspaceByCode(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getWorkspaceInviteCode = async (req, res, next) => {
   try {
     const { workspaceId } = req.params;

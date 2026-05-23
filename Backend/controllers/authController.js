@@ -130,9 +130,15 @@ export const getCurrentUser = async (req, res) => {
 
 /* GOOGLE LOGIN */
 
-export const googleAuthRedirect = passport.authenticate("google", {
-  scope: ["profile", "email"]
-})
+export const googleAuthRedirect = (req, res, next) => {
+  const inviteCode = String(req.query.inviteCode || "").trim();
+  const state = inviteCode ? `workspace:${inviteCode}` : undefined;
+
+  return passport.authenticate("google", {
+    scope: ["profile", "email"],
+    state,
+  })(req, res, next);
+}
 
 export const googleAuthCallback = [
   passport.authenticate("google", { failureRedirect: `${getFrontendUrl()}/login` }),
@@ -169,8 +175,15 @@ export const googleAuthCallback = [
 
       res.cookie("token", token, authCookieOptions);
 
+      const state = String(req.query.state || "");
+      const inviteCode = state.startsWith("workspace:")
+        ? state.slice("workspace:".length)
+        : "";
+
       // Redirect to the frontend app after setting the auth cookie.
-      res.redirect(`${getFrontendUrl()}/home`)
+      res.redirect(inviteCode
+        ? `${getFrontendUrl()}/join/${encodeURIComponent(inviteCode)}`
+        : `${getFrontendUrl()}/home`)
 
     } catch (error) {
       res.redirect(`${getFrontendUrl()}/login`)

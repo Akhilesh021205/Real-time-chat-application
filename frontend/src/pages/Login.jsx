@@ -68,7 +68,11 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
   // ✅ UPDATED Google Login
   const handleSocialLogin = () => {
     setLoading(true);
-    window.location.href = `${API_URL}/api/auth/google`;
+    const pendingInvite = localStorage.getItem("pendingInviteCode");
+    const inviteQuery = pendingInvite
+      ? `?inviteCode=${encodeURIComponent(pendingInvite)}`
+      : "";
+    window.location.href = `${API_URL}/api/auth/google${inviteQuery}`;
   };
 
   return (

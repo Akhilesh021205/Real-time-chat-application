@@ -26,7 +26,11 @@ function Register() {
   };
 
   const handleSocialLogin = () => {
-    window.location.href = `${API_URL}/api/auth/google`;
+    const pendingInvite = localStorage.getItem("pendingInviteCode");
+    const inviteQuery = pendingInvite
+      ? `?inviteCode=${encodeURIComponent(pendingInvite)}`
+      : "";
+    window.location.href = `${API_URL}/api/auth/google${inviteQuery}`;
   };
 
   return (
