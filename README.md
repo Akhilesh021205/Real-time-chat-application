@@ -160,5 +160,5 @@ For details, refer to:
 - JWT stored in an **HttpOnly cookie**
 - Protected routes use token verification middleware
 - Messaging actions require membership/ownership checks
-
+-messaging actions require membership/ownership checks
 ---
