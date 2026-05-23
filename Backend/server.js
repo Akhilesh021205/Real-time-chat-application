@@ -264,6 +264,60 @@ io.on("connection", (socket) => {
     console.log(`User joined workspace room: ${workspaceId}`);
   });
 
+  /* ✅ HUDDLES (WebRTC signaling) */
+  socket.on("huddle:join", ({ roomId, user }) => {
+    if (!roomId) return;
+    const roomName = `huddle:${roomId}`;
+    const room = io.sockets.adapter.rooms.get(roomName);
+    const participants = room ? Array.from(room).filter((id) => id !== socket.id) : [];
+
+    socket.join(roomName);
+    socket.data.huddleRoom = roomName;
+    socket.data.huddleUser = user;
+
+    socket.emit("huddle:participants", { participants });
+    socket.to(roomName).emit("huddle:user-joined", {
+      socketId: socket.id,
+      user,
+    });
+  });
+
+  socket.on("huddle:offer", ({ to, offer }) => {
+    if (!to || !offer) return;
+    io.to(to).emit("huddle:offer", {
+      from: socket.id,
+      offer,
+      user: socket.data.huddleUser,
+    });
+  });
+
+  socket.on("huddle:answer", ({ to, answer }) => {
+    if (!to || !answer) return;
+    io.to(to).emit("huddle:answer", {
+      from: socket.id,
+      answer,
+    });
+  });
+
+  socket.on("huddle:ice-candidate", ({ to, candidate }) => {
+    if (!to || !candidate) return;
+    io.to(to).emit("huddle:ice-candidate", {
+      from: socket.id,
+      candidate,
+    });
+  });
+
+  socket.on("huddle:leave", ({ roomId }) => {
+    const roomName = roomId ? `huddle:${roomId}` : socket.data.huddleRoom;
+    if (!roomName) return;
+    socket.leave(roomName);
+    socket.to(roomName).emit("huddle:user-left", { socketId: socket.id });
+    if (socket.data.huddleRoom === roomName) {
+      delete socket.data.huddleRoom;
+      delete socket.data.huddleUser;
+    }
+  });
+
   /* ✅ TYPING (CHANNEL OR DM) */
   socket.on("typing", ({ room, username }) => {
     socket.to(room).emit("typing", { username });
@@ -275,6 +329,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
+    if (socket.data.huddleRoom) {
+      socket.to(socket.data.huddleRoom).emit("huddle:user-left", { socketId: socket.id });
+    }
+
     const userId = onlineUsers.get(socket.id);
     if (userId) {
       onlineUsers.delete(socket.id);

@@ -7,16 +7,16 @@ import nodemailer from "nodemailer"
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-const getFrontendUrl = () =>
-  (process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
+const getFrontendUrl = (req) =>
+  (req?.headers?.origin || process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
     .replace(/\/$/, "")
 
-const sendWorkspaceInviteEmail = async ({ to, workspace, sender }) => {
+const sendWorkspaceInviteEmail = async ({ to, workspace, sender, frontendUrl }) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error("Email sending is not configured. Set EMAIL_USER and EMAIL_PASS.")
   }
 
-  const inviteLink = `${getFrontendUrl()}/join/${workspace.inviteCode}`
+  const inviteLink = `${frontendUrl}/join/${workspace.inviteCode}`
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -109,6 +109,7 @@ export const inviteToWorkspace = async (req, res, next) => {
           to: inviteTarget,
           workspace,
           sender,
+          frontendUrl: getFrontendUrl(req),
         })
       } catch (mailErr) {
         console.error("Workspace invite email failed:", mailErr)
