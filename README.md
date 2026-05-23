@@ -20,10 +20,30 @@ Key real-time behaviors:
 ## 🚀 Deployment
 
 ### Backend
-- **Backend API**: (e.g., https://your-backend-domain.com)
+The backend is deployed on Render and handles:
+- User authentication (JWT + Google OAuth)
+- Real-time messaging with Socket.IO
+- Channel & workspace management
+- File uploads and cloud storage integration
+
+🔗 **Backend API**:  
+https://real-time-chat-application-5dld.onrender.com
+
+---
 
 ### Frontend
-- **Web App**: (e.g., https://your-frontend-domain.com)
+The frontend is deployed on Vercel with a responsive modern UI inspired by Slack.
+
+Features include:
+- Real-time chat
+- Direct messages
+- Workspace & channel system
+- Huddles/voice room support
+- Google Sign-In
+- Mobile responsive design
+
+🔗 **Web App**:  
+https://real-time-chat-application-frontend-nine.vercel.app
 
 ### Socket.IO note
 Socket.IO requires the backend to be reachable by the frontend and CORS/cookie settings to be configured for your deployed domains.
