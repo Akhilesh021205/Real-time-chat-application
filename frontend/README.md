@@ -8,7 +8,7 @@ A modern, fully responsive **Slack-style real-time chat frontend** built with **
 
 ## 🚀 Live Deployment
 
- Frontend App  —  (add your Vercel/hosting link here) 
+ Frontend App  — https://real-time-chat-application-frontend-nine.vercel.app
 
 ---
 
