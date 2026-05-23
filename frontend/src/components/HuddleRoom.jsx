@@ -6,14 +6,20 @@ import { useAuth } from "../context/AuthContext.jsx";
 const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 
 async function getBestAvailableStream() {
+  const audio = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: true,
+  };
+
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    return await navigator.mediaDevices.getUserMedia({ audio, video: true });
   } catch (videoErr) {
     console.warn("Camera + microphone unavailable, trying audio only", videoErr);
   }
 
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    return await navigator.mediaDevices.getUserMedia({ audio, video: false });
   } catch (audioErr) {
     console.warn("Audio unavailable, joining huddle without local media", audioErr);
     return null;
@@ -22,17 +28,82 @@ async function getBestAvailableStream() {
 
 function RemoteVideo({ stream, label }) {
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [audioTrackCount, setAudioTrackCount] = useState(0);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (video) video.srcObject = stream;
+    if (!audio) return;
+
+    const syncAudioTracks = () => {
+      const tracks = stream.getAudioTracks();
+      setAudioTrackCount(tracks.length);
+      audio.srcObject = new MediaStream(tracks);
+    };
+
+    syncAudioTracks();
+    stream.addEventListener("addtrack", syncAudioTracks);
+    stream.addEventListener("removetrack", syncAudioTracks);
+    audio.volume = 1;
+    audio.muted = false;
+
+    const playAudio = async () => {
+      try {
+        await audio.play();
+        setAudioBlocked(false);
+      } catch (err) {
+        console.warn("Remote audio autoplay blocked", err);
+        setAudioBlocked(true);
+      }
+    };
+
+    playAudio();
+
+    return () => {
+      stream.removeEventListener("addtrack", syncAudioTracks);
+      stream.removeEventListener("removetrack", syncAudioTracks);
+    };
   }, [stream]);
+
+  const enableAudio = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      audio.muted = false;
+      audio.volume = 1;
+      await audio.play();
+      setAudioBlocked(false);
+    } catch (err) {
+      console.warn("Could not enable remote audio", err);
+      setAudioBlocked(true);
+    }
+  };
 
   return (
     <div className="relative aspect-video bg-black/60 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+      <audio ref={audioRef} autoPlay playsInline />
       <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1.5 rounded-lg text-sm font-semibold backdrop-blur-md">
         {label || "Guest"}
       </div>
+      {(audioBlocked || audioTrackCount > 0) && (
+        <button
+          onClick={enableAudio}
+          className={`absolute bottom-4 right-4 px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg ${
+            audioBlocked ? "bg-white text-[#1a1c1e]" : "bg-emerald-500 text-white"
+          }`}
+        >
+          {audioBlocked ? "Enable audio" : "Speaker on"}
+        </button>
+      )}
+      {!audioTrackCount && (
+        <div className="absolute top-4 right-4 bg-black/60 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-200">
+          No audio track
+        </div>
+      )}
     </div>
   );
 }
@@ -65,9 +136,14 @@ export default function HuddleRoom({ room, onClose, name }) {
       const peer = new RTCPeerConnection({ iceServers });
       peersRef.current.set(socketId, peer);
 
-      localStreamRef.current?.getTracks().forEach((track) => {
+      const localTracks = localStreamRef.current?.getTracks() || [];
+      localTracks.forEach((track) => {
         peer.addTrack(track, localStreamRef.current);
       });
+      if (localTracks.length === 0) {
+        peer.addTransceiver("audio", { direction: "recvonly" });
+        peer.addTransceiver("video", { direction: "recvonly" });
+      }
 
       peer.onicecandidate = (event) => {
         if (event.candidate) {

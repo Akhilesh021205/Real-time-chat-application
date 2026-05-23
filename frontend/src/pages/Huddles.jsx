@@ -71,11 +71,11 @@ export default function Huddles() {
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Hero Section */}
             <div className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 border border-white/10 rounded-3xl p-10 text-center space-y-6 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mx-auto shadow-2xl border border-white/5 animate-bounce-subtle">
+              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+              <div className="relative z-10 w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mx-auto shadow-2xl border border-white/5 animate-bounce-subtle">
                 <Headphones size={48} className="text-accent" strokeWidth={1.75} />
               </div>
-              <div className="space-y-2">
+              <div className="relative z-10 space-y-2">
                 <h2 className="text-3xl font-extrabold text-white">Start a meeting</h2>
                 <p className="text-gray-400 max-w-md mx-auto leading-relaxed">
                   Start an instant audio or video session with your team members in any channel or your personal room.
@@ -83,7 +83,7 @@ export default function Huddles() {
               </div>
               <button 
                 onClick={() => handleStartHuddle(user?._id || "personal", "Personal Meeting Room")}
-                className="mt-6 px-10 py-4 bg-white text-indigo-600 font-black rounded-2xl shadow-2xl hover:scale-105 transition-all active:scale-95"
+                className="relative z-10 mt-6 px-10 py-4 bg-white text-indigo-600 font-black rounded-2xl shadow-2xl hover:scale-105 transition-all active:scale-95"
               >
                 Start Personal Huddle
               </button>
