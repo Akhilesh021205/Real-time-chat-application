@@ -6,8 +6,8 @@ import { User } from "../Models/user.js";
 dotenv.config();
 
 const getGoogleCallbackUrl = () => {
-  if (process.env.GOOGLE_CALLBACK_URL) {
-    return process.env.GOOGLE_CALLBACK_URL;
+  if (process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI) {
+    return process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI;
   }
 
   const backendUrl = process.env.BACKEND_URL || process.env.API_URL;

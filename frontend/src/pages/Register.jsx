@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext.jsx';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { API_URL, requireProductionApiUrl } from "../config/api.js";
 
 function Register() {
   const navigate = useNavigate();
@@ -26,6 +25,7 @@ function Register() {
   };
 
   const handleSocialLogin = () => {
+    if (!requireProductionApiUrl()) return;
     const pendingInvite = localStorage.getItem("pendingInviteCode");
     const inviteQuery = pendingInvite
       ? `?inviteCode=${encodeURIComponent(pendingInvite)}`
