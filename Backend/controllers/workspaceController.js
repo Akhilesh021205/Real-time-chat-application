@@ -3,6 +3,39 @@ import { User } from "../Models/user.js"
 import { Channel } from "../Models/channel.js"
 import Message from "../Models/Message.js"
 import { Notification } from "../Models/Notification.js"
+import nodemailer from "nodemailer"
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+const getFrontendUrl = () =>
+  (process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
+    .replace(/\/$/, "")
+
+const sendWorkspaceInviteEmail = async ({ to, workspace, sender }) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false
+
+  const inviteLink = `${getFrontendUrl()}/join/${workspace.inviteCode}`
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  })
+
+  await transporter.sendMail({
+    to,
+    subject: `Invitation to join ${workspace.name}`,
+    html: `<div style="font-family: Arial, sans-serif; line-height: 1.5;">
+      <h2>You're invited to join ${workspace.name}</h2>
+      <p>${sender?.username || "A teammate"} invited you to join their workspace.</p>
+      <p><a href="${inviteLink}" style="display:inline-block;padding:10px 14px;background:#22c55e;color:#000;text-decoration:none;border-radius:6px;font-weight:700;">Join workspace</a></p>
+      <p>Invite code: <strong>${workspace.inviteCode}</strong></p>
+    </div>`,
+  })
+
+  return true
+}
 
 export const createWorkspace = async (req, res, next) => {
   try {
@@ -28,7 +61,8 @@ export const createWorkspace = async (req, res, next) => {
 export const inviteToWorkspace = async (req, res, next) => {
   try {
     const { email, workspaceId } = req.body; // can be email OR username
-    if (!email) return res.status(400).json({ message: "Email or username required" });
+    const inviteTarget = String(email || "").trim()
+    if (!inviteTarget) return res.status(400).json({ message: "Email or username required" });
 
     const accessFilter = {
       $or: [
@@ -53,15 +87,41 @@ export const inviteToWorkspace = async (req, res, next) => {
     }
 
     // Search by email OR username (case-insensitive)
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteTarget)
     const userToInvite = await User.findOne({
       $or: [
-        { email: email.trim().toLowerCase() },
-        { username: { $regex: new RegExp(`^${email.trim()}$`, "i") } },
+        { email: { $regex: new RegExp(`^${escapeRegex(inviteTarget)}$`, "i") } },
+        { username: { $regex: new RegExp(`^${escapeRegex(inviteTarget)}$`, "i") } },
       ],
     });
 
     if (!userToInvite) {
-      return res.status(404).json({ message: "User not found" });
+      if (!isEmail) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const sender = await User.findById(req.userId).select("username email")
+      const inviteLink = `${getFrontendUrl()}/join/${workspace.inviteCode}`
+      let emailSent = false
+
+      try {
+        emailSent = await sendWorkspaceInviteEmail({
+          to: inviteTarget,
+          workspace,
+          sender,
+        })
+      } catch (mailErr) {
+        console.error("Workspace invite email failed:", mailErr)
+      }
+
+      return res.json({
+        message: emailSent
+          ? `Invitation email sent to ${inviteTarget}.`
+          : `Invite link created for ${inviteTarget}. Email is not configured, so share this link manually: ${inviteLink}`,
+        inviteCode: workspace.inviteCode,
+        inviteLink,
+        emailSent,
+      });
     }
 
     // Don't invite yourself

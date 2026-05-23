@@ -141,14 +141,16 @@ function Home() {
     setInviteError("");
     setInviteSuccess("");
     try {
-      await axios.post(
+      const res = await axios.post(
         `${API_BASE}/api/workspaces/invite`,
         { email: inviteEmail.trim(), workspaceId: currentWorkspace?._id },
         { withCredentials: true }
       );
-      setInviteSuccess("Invitation sent.");
+      setInviteSuccess(res.data?.message || "Invitation sent.");
       setInviteEmail("");
-      setTimeout(() => setInviteOpen(false), 1200);
+      if (res.data?.emailSent !== false) {
+        setTimeout(() => setInviteOpen(false), 1200);
+      }
     } catch (err) {
       setInviteError(err?.response?.data?.message || "Invite failed");
     } finally {
