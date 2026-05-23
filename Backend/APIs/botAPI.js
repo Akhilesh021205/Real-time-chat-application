@@ -18,6 +18,10 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+const TEXT_MODEL = process.env.GROQ_TEXT_MODEL || "llama-3.1-8b-instant";
+const VISION_MODEL =
+  process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+
 /* CHAT WITH SLACKBOT */
 router.post('/chat', verifyToken, async (req, res) => {
   try {
@@ -78,7 +82,7 @@ Be concise and direct. If a user asks a follow-up like "which one" or "give", us
         content: userPrompt,
       },
     ];
-    let selectedModel = "llama-3.1-8b-instant";
+    let selectedModel = TEXT_MODEL;
 
     if (hasFile) {
       let dataBuffer;
@@ -109,8 +113,7 @@ Be concise and direct. If a user asks a follow-up like "which one" or "give", us
         userPrompt += `\n\n[USER UPLOADED PDF DOCUMENT CONTENT (TEXT)]:\n${pdfData.text}`;
         messagesPayload[messagesPayload.length - 1].content = userPrompt;
       } else if (fileExt === '.png' || fileExt === '.jpg' || fileExt === '.jpeg' || fileExt === '.webp') {
-        return res.json({ content: "❌ AI Error: Groq has decommissioned their Vision model, so I can no longer see or process images. Please upload text or PDF documents instead!" });
-        selectedModel = "llama-3.2-11b-vision-preview";
+        selectedModel = VISION_MODEL;
         const imageAsBase64 = dataBuffer.toString('base64');
         const mimeType = fileExt === '.png' ? 'image/png' : (fileExt === '.webp' ? 'image/webp' : 'image/jpeg');
         messagesPayload = [
@@ -121,7 +124,7 @@ Be concise and direct. If a user asks a follow-up like "which one" or "give", us
           {
             role: "user",
             content: [
-              { type: "text", text: userPrompt },
+              { type: "text", text: userPrompt || "Describe this image." },
               {
                 type: "image_url",
                 image_url: {
@@ -177,7 +180,7 @@ router.post('/summarize-channel/:channelId', verifyToken, async (req, res) => {
           content: prompt,
         },
       ],
-      model: "llama-3.1-8b-instant",
+      model: TEXT_MODEL,
     });
 
     const summary = chatCompletion.choices[0].message.content;
