@@ -87,6 +87,7 @@ function App() {
         {user && (
           <>
             <Route path="/home" element={<Home />} />
+            <Route path="/dashboard" element={<Navigate to="/home" />} />
             <Route path="/launch" element={<Launch />} />
             <Route path="/chat/:id" element={<Chat />} /> 
             <Route path="/chat" element={<Chat />} />
