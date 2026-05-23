@@ -12,7 +12,9 @@ const getFrontendUrl = () =>
     .replace(/\/$/, "")
 
 const sendWorkspaceInviteEmail = async ({ to, workspace, sender }) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error("Email sending is not configured. Set EMAIL_USER and EMAIL_PASS.")
+  }
 
   const inviteLink = `${getFrontendUrl()}/join/${workspace.inviteCode}`
   const transporter = nodemailer.createTransport({
@@ -101,26 +103,25 @@ export const inviteToWorkspace = async (req, res, next) => {
       }
 
       const sender = await User.findById(req.userId).select("username email")
-      const inviteLink = `${getFrontendUrl()}/join/${workspace.inviteCode}`
-      let emailSent = false
 
       try {
-        emailSent = await sendWorkspaceInviteEmail({
+        await sendWorkspaceInviteEmail({
           to: inviteTarget,
           workspace,
           sender,
         })
       } catch (mailErr) {
         console.error("Workspace invite email failed:", mailErr)
+        return res.status(500).json({
+          message:
+            "Invite email could not be sent. Configure EMAIL_USER and EMAIL_PASS on the backend, then try again.",
+        })
       }
 
       return res.json({
-        message: emailSent
-          ? `Invitation email sent to ${inviteTarget}.`
-          : `Invite link created for ${inviteTarget}. Email is not configured, so share this link manually: ${inviteLink}`,
+        message: `Invitation email sent to ${inviteTarget}.`,
         inviteCode: workspace.inviteCode,
-        inviteLink,
-        emailSent,
+        emailSent: true,
       });
     }
 
