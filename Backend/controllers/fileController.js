@@ -1,13 +1,6 @@
 import File from "../Models/File.js";
 
-import { v2 as cloudinary } from "cloudinary";
-
-// Cloudinary configuration (will pick up from process.env if available, or can be explicitly set)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+import cloudinary from "../config/cloudinary.js";
 
 // Upload a file and save to database
 export const uploadFile = async (req, res) => {

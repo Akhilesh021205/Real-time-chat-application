@@ -17,7 +17,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../config/cloudinary.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
