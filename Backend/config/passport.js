@@ -5,12 +5,25 @@ import { User } from "../Models/user.js";
 
 dotenv.config();
 
+const getGoogleCallbackUrl = () => {
+  if (process.env.GOOGLE_CALLBACK_URL) {
+    return process.env.GOOGLE_CALLBACK_URL;
+  }
+
+  const backendUrl = process.env.BACKEND_URL || process.env.API_URL;
+  if (backendUrl) {
+    return `${backendUrl.replace(/\/$/, "")}/api/auth/google/callback`;
+  }
+
+  return "http://localhost:4000/api/auth/google/callback";
+};
+
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:4000/api/auth/google/callback",
+      callbackURL: getGoogleCallbackUrl(),
     },
 
     async (accessToken, refreshToken, profile, done) => {

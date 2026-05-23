@@ -11,6 +11,10 @@ const usesHttpsFrontend =
   process.env.CLIENT_URL?.startsWith("https://");
 const isProduction = process.env.NODE_ENV === "production" || usesHttpsFrontend;
 
+const getFrontendUrl = () =>
+  (process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
+    .replace(/\/$/, "");
+
 const authCookieOptions = {
   httpOnly: true,
   sameSite: isProduction ? "none" : "lax",
@@ -131,7 +135,7 @@ export const googleAuthRedirect = passport.authenticate("google", {
 })
 
 export const googleAuthCallback = [
-  passport.authenticate("google", { failureRedirect: "/login" }),
+  passport.authenticate("google", { failureRedirect: `${getFrontendUrl()}/login` }),
 
   async (req, res) => {
     try {
@@ -165,11 +169,11 @@ export const googleAuthCallback = [
 
       res.cookie("token", token, authCookieOptions);
 
-      // 🔥 Redirect to frontend
-      res.redirect(`${process.env.FRONTEND_URL}/dashboard`)
+      // Redirect to the frontend app after setting the auth cookie.
+      res.redirect(`${getFrontendUrl()}/home`)
 
     } catch (error) {
-      res.redirect(`${process.env.FRONTEND_URL}/login`)
+      res.redirect(`${getFrontendUrl()}/login`)
     }
   }
 ]
