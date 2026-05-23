@@ -11,6 +11,7 @@ import { connectDB } from "./config/db.js";
 import { verifyToken } from "./middleware/verifyToken.js";
 import { Channel } from "./Models/channel.js";
 import { User } from "./Models/user.js";
+import { Workspace } from "./Models/workspace.js";
 
 import messageAPI from "./APIs/messageAPI.js";
 import dmAPI from "./APIs/dmAPI.js";
@@ -177,14 +178,26 @@ const onlineUsers = new Map(); // socket.id -> userId
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  const isMemberOfChannel = (channel, userId) => {
+  const isMemberOfChannel = async (channel, userId) => {
     if (!channel) return false;
     const uid = userId?.toString?.();
     const isOwner = channel.createdBy?.toString?.() === uid;
     const isMember = (channel.members || []).some(
       (m) => m?.toString?.() === uid
     );
-    return isOwner || isMember;
+    const isAdmin = (channel.admins || []).some(
+      (a) => a?.toString?.() === uid
+    );
+    if (isOwner || isMember || isAdmin) return true;
+    if (channel.isPrivate || !channel.workspace) return false;
+
+    const workspace = await Workspace.findById(channel.workspace).select("owner members admins");
+    if (!workspace) return false;
+    return (
+      workspace.owner?.toString() === uid ||
+      workspace.members.some((m) => m.toString() === uid) ||
+      workspace.admins.some((a) => a.toString() === uid)
+    );
   };
 
   /* ✅ GO ONLINE (Presence) */
@@ -216,7 +229,7 @@ io.on("connection", (socket) => {
 
     try {
       const channel = await Channel.findById(targetChannelId);
-      if (!isMemberOfChannel(channel, userId)) return;
+      if (!(await isMemberOfChannel(channel, userId))) return;
 
       socket.join(targetChannelId);
       console.log(`Joined channel: ${targetChannelId}`);

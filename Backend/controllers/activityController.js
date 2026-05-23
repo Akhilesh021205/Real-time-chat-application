@@ -1,6 +1,15 @@
 import Message from "../Models/Message.js";
 import { Notification } from "../Models/Notification.js";
 import { User } from "../Models/user.js";
+
+const addReadByUser = async (messageIds, userId) => {
+  if (!messageIds || messageIds.length === 0) return;
+  await Message.updateMany(
+    { _id: { $in: messageIds }, readBy: { $ne: userId } },
+    { $addToSet: { readBy: userId } }
+  );
+};
+
 export const getActivityFeed = async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -141,6 +150,76 @@ export const getActivityFeed = async (req, res, next) => {
     items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json(items.slice(0, 80));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const markActivityItemRead = async (req, res, next) => {
+  try {
+    const { source, rawId } = req.body;
+    if (!source || !rawId) {
+      return res.status(400).json({ message: "source and rawId are required" });
+    }
+
+    if (source === "notification") {
+      await Notification.updateOne(
+        { _id: rawId, recipient: req.userId },
+        { $set: { read: true } }
+      );
+      return res.json({ message: "Notification marked as read" });
+    }
+
+    if (source === "message") {
+      await addReadByUser([rawId], req.userId);
+      return res.json({ message: "Message marked as read" });
+    }
+
+    return res.status(400).json({ message: "Unsupported activity source" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const markAllActivityRead = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const user = await User.findById(userId).select("username");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    await Notification.updateMany(
+      { recipient: userId, read: { $ne: true } },
+      { $set: { read: true } }
+    );
+
+    const messageFilters = [
+      { receiver: userId, readBy: { $ne: userId } },
+    ];
+
+    if (user.username) {
+      messageFilters.push({
+        content: new RegExp(`@${user.username}\\b`, "i"),
+        channel: { $ne: null },
+        sender: { $ne: userId },
+        readBy: { $ne: userId },
+      });
+    }
+
+    const myMessageIds = await Message.find({ sender: userId }).select("_id").limit(500);
+    if (myMessageIds.length > 0) {
+      messageFilters.push({
+        parentMessage: { $in: myMessageIds.map((m) => m._id) },
+        sender: { $ne: userId },
+        readBy: { $ne: userId },
+      });
+    }
+
+    await Message.updateMany(
+      { $or: messageFilters },
+      { $addToSet: { readBy: userId } }
+    );
+
+    res.json({ message: "All activity marked as read" });
   } catch (err) {
     next(err);
   }

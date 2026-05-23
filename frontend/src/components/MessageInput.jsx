@@ -3,8 +3,9 @@ import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
 import { Plus, Smile, AtSign, Paperclip, Mic, Send, Link } from "lucide-react";
 import AttachmentPreview from "./AttachmentPreview.jsx";
+import { API_URL } from "../config/api.js";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_BASE = API_URL;
 
 function MessageInput({
   onSend,

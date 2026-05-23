@@ -11,9 +11,12 @@ import {
   AtSign,
   MessageSquare,
   Bell,
+  CheckCheck,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar.jsx";
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+import { API_URL } from "../config/api.js";
+
+const API_BASE = API_URL;
 
 const TABS = [
   { id: "all", label: "All" },
@@ -49,6 +52,7 @@ function Activity() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState("list");
   const [selected, setSelected] = useState(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
   const fetchChannels = async () => {
     try {
@@ -115,13 +119,12 @@ function Activity() {
 
   const markRead = async (item) => {
     if (!item || item.read) return;
-    if (item.source === "notification" && item.rawId) {
+    if (item.rawId) {
       try {
-        await axios.put(
-          `${API_BASE}/api/notifications/mark-read/${item.rawId}`,
-          {},
-          { withCredentials: true }
-        );
+        await axios.put(`${API_BASE}/api/activity/read`, {
+          source: item.source,
+          rawId: item.rawId,
+        }, { withCredentials: true });
       } catch (err) {
         console.error(err);
       }
@@ -130,6 +133,21 @@ function Activity() {
       prev.map((i) => (i.id === item.id ? { ...i, read: true } : i))
     );
     window.dispatchEvent(new Event("activityReadUpdated"));
+  };
+
+  const markAllRead = async () => {
+    if (markingAllRead || items.every((item) => item.read)) return;
+    setMarkingAllRead(true);
+    try {
+      await axios.put(`${API_BASE}/api/activity/read-all`, {}, { withCredentials: true });
+      setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+      setSelected((prev) => (prev ? { ...prev, read: true } : prev));
+      window.dispatchEvent(new Event("activityReadUpdated"));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setMarkingAllRead(false);
+    }
   };
 
   const openItem = (item) => {
@@ -154,14 +172,25 @@ function Activity() {
         <div className="w-[380px] shrink-0 flex flex-col border-r border-white/10 bg-[#101418]">
           <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-white/5">
             <h1 className="text-[22px] font-bold tracking-tight">Activity</h1>
-            <button
-              type="button"
-              onClick={() => navigate("/settings")}
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"
-              title="Notification preferences"
-            >
-              <Settings size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={markAllRead}
+                disabled={markingAllRead || items.every((item) => item.read)}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Mark all as read"
+              >
+                <CheckCheck size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"
+                title="Notification preferences"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="px-4 pt-3 flex gap-1 overflow-x-auto no-scrollbar border-b border-white/5 pb-0">

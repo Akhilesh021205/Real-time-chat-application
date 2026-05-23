@@ -23,14 +23,33 @@ const sharesWorkspace = async (userIdA, userIdB) => {
   return !!commonWorkspace;
 };
 
-const isChannelMember = (channel, userId) => {
+const isDirectChannelMember = (channel, userId) => {
   if (!channel) return false;
   const uid = userId?.toString?.();
   const isOwner = channel.createdBy?.toString?.() === uid;
   const isMember = (channel.members || []).some(
     (m) => m?.toString?.() === uid
   );
-  return isOwner || isMember;
+  const isAdmin = (channel.admins || []).some(
+    (a) => a?.toString?.() === uid
+  );
+  return isOwner || isMember || isAdmin;
+};
+
+const canAccessChannel = async (channel, userId) => {
+  if (!channel) return false;
+  if (isDirectChannelMember(channel, userId)) return true;
+  if (channel.isPrivate || !channel.workspace) return false;
+
+  const workspace = await Workspace.findById(channel.workspace).select("owner members admins");
+  if (!workspace) return false;
+
+  const uid = userId?.toString?.();
+  return (
+    workspace.owner?.toString() === uid ||
+    workspace.members.some((m) => m.toString() === uid) ||
+    workspace.admins.some((a) => a.toString() === uid)
+  );
 };
 
 const buildRoomId = (userIdA, userIdB) => {
@@ -86,7 +105,7 @@ export const sendMessage = async (req, res, next) => {
         return res.status(404).json({ message: "Channel not found" });
       }
 
-      if (!isChannelMember(channel, req.userId)) {
+      if (!(await canAccessChannel(channel, req.userId))) {
         return res.status(403).json({ message: "Not allowed" });
       }
 
@@ -161,7 +180,7 @@ export const getChannelMessages = async (req, res, next) => {
       return res.status(404).json({ message: "Channel not found" });
     }
 
-    if (!isChannelMember(channel, req.userId)) {
+    if (!(await canAccessChannel(channel, req.userId))) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -191,7 +210,7 @@ export const replyToMessage = async (req, res, next) => {
       return res.status(404).json({ message: "Channel not found" });
     }
 
-    if (!isChannelMember(channel, req.userId)) {
+    if (!(await canAccessChannel(channel, req.userId))) {
       return res.status(403).json({ message: "Not allowed" });
     }
 
