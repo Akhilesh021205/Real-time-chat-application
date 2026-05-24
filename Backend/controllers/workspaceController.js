@@ -3,6 +3,41 @@ import { User } from "../Models/user.js"
 import { Channel } from "../Models/channel.js"
 import Message from "../Models/Message.js"
 import { Notification } from "../Models/Notification.js"
+import nodemailer from "nodemailer"
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+const getFrontendUrl = (req) =>
+  (req?.headers?.origin || process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
+    .replace(/\/$/, "")
+
+const sendWorkspaceInviteEmail = async ({ to, workspace, sender, frontendUrl }) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error("Email sending is not configured. Set EMAIL_USER and EMAIL_PASS.")
+  }
+
+  const inviteLink = `${frontendUrl}/join/${workspace.inviteCode}`
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  })
+
+  await transporter.sendMail({
+    to,
+    subject: `Invitation to join ${workspace.name}`,
+    html: `<div style="font-family: Arial, sans-serif; line-height: 1.5;">
+      <h2>You're invited to join ${workspace.name}</h2>
+      <p>${sender?.username || "A teammate"} invited you to join their workspace.</p>
+      <p><a href="${inviteLink}" style="display:inline-block;padding:10px 14px;background:#22c55e;color:#000;text-decoration:none;border-radius:6px;font-weight:700;">Join workspace</a></p>
+      <p>Invite code: <strong>${workspace.inviteCode}</strong></p>
+    </div>`,
+  })
+
+  return true
+}
 
 export const createWorkspace = async (req, res, next) => {
   try {
@@ -28,7 +63,8 @@ export const createWorkspace = async (req, res, next) => {
 export const inviteToWorkspace = async (req, res, next) => {
   try {
     const { email, workspaceId } = req.body; // can be email OR username
-    if (!email) return res.status(400).json({ message: "Email or username required" });
+    const inviteTarget = String(email || "").trim()
+    if (!inviteTarget) return res.status(400).json({ message: "Email or username required" });
 
     const accessFilter = {
       $or: [
@@ -53,15 +89,41 @@ export const inviteToWorkspace = async (req, res, next) => {
     }
 
     // Search by email OR username (case-insensitive)
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteTarget)
     const userToInvite = await User.findOne({
       $or: [
-        { email: email.trim().toLowerCase() },
-        { username: { $regex: new RegExp(`^${email.trim()}$`, "i") } },
+        { email: { $regex: new RegExp(`^${escapeRegex(inviteTarget)}$`, "i") } },
+        { username: { $regex: new RegExp(`^${escapeRegex(inviteTarget)}$`, "i") } },
       ],
     });
 
     if (!userToInvite) {
-      return res.status(404).json({ message: "User not found" });
+      if (!isEmail) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const sender = await User.findById(req.userId).select("username email")
+
+      try {
+        await sendWorkspaceInviteEmail({
+          to: inviteTarget,
+          workspace,
+          sender,
+          frontendUrl: getFrontendUrl(req),
+        })
+      } catch (mailErr) {
+        console.error("Workspace invite email failed:", mailErr)
+        return res.status(500).json({
+          message:
+            "Invite email could not be sent. Configure EMAIL_USER and EMAIL_PASS on the backend, then try again.",
+        })
+      }
+
+      return res.json({
+        message: `Invitation email sent to ${inviteTarget}.`,
+        inviteCode: workspace.inviteCode,
+        emailSent: true,
+      });
     }
 
     // Don't invite yourself
@@ -292,6 +354,20 @@ export const joinWorkspaceByCode = async (req, res, next) => {
         : "Successfully joined workspace",
       workspace: populated,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const joinWorkspace = async (req, res, next) => {
+  try {
+    const { inviteCode } = req.params;
+    if (!inviteCode) {
+      return res.status(400).json({ message: "Invite code is required" });
+    }
+
+    req.body = { ...req.body, inviteCode };
+    return joinWorkspaceByCode(req, res, next);
   } catch (err) {
     next(err);
   }

@@ -77,7 +77,7 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/join/:code" element={<JoinWorkspace />} />
+            <Route path="/join/:inviteCode" element={<JoinWorkspace />} />
             <Route path="/join-channel/:code" element={<JoinChannel />} />
             <Route path="*" element={<Navigate to="/" />} />
           </>
@@ -87,6 +87,7 @@ function App() {
         {user && (
           <>
             <Route path="/home" element={<Home />} />
+            <Route path="/dashboard" element={<Navigate to="/home" />} />
             <Route path="/launch" element={<Launch />} />
             <Route path="/chat/:id" element={<Chat />} /> 
             <Route path="/chat" element={<Chat />} />
@@ -103,7 +104,7 @@ function App() {
             <Route path="/starred" element={<Starred />} />
             <Route path="/apps" element={<Apps />} />
             <Route path="/canvas" element={<CanvasPage />} />
-            <Route path="/join/:code" element={<JoinWorkspace />} />
+            <Route path="/join/:inviteCode" element={<JoinWorkspace />} />
             <Route path="/join-channel/:code" element={<JoinChannel />} />
 
             <Route path="*" element={<Navigate to="/home" />} />

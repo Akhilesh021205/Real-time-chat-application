@@ -7,6 +7,7 @@ import {
   removeWorkspaceMember,
   searchUsers,
   getPendingInvitations,
+  joinWorkspace,
   joinWorkspaceByCode,
   getWorkspaceInviteCode,
   connectWorkspaces,
@@ -23,6 +24,7 @@ router.post("/invite", verifyToken, inviteToWorkspace)
 router.get("/user", verifyToken, getUserWorkspaces)
 router.get("/search-users", verifyToken, searchUsers)
 router.get("/invitations/pending", verifyToken, getPendingInvitations)
+router.post("/join/:inviteCode", verifyToken, joinWorkspace)
 router.post("/join-by-code", verifyToken, joinWorkspaceByCode)
 router.get("/:workspaceId/invite-code", verifyToken, getWorkspaceInviteCode)
 router.get("/:workspaceId/members", verifyToken, getWorkspaceMembers)

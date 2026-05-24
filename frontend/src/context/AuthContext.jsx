@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { socket } from '../socket/socket.js';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+import { API_URL } from "../config/api.js";
 
 const AuthContext = createContext(null);
 

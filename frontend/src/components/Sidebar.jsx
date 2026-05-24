@@ -287,12 +287,12 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
       return;
     }
     try {
-      await axios.post(
+      const res = await axios.post(
         `${API_BASE}/api/workspaces/invite`,
         { email, workspaceId: currentWorkspace._id },
         { withCredentials: true }
       );
-      setInviteSuccess("Invitation sent");
+      setInviteSuccess(res.data?.message || "Invitation sent");
       setInviteError("");
       setInviteEmail("");
     } catch (err) {

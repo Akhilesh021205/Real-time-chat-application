@@ -11,6 +11,10 @@ const usesHttpsFrontend =
   process.env.CLIENT_URL?.startsWith("https://");
 const isProduction = process.env.NODE_ENV === "production" || usesHttpsFrontend;
 
+const getFrontendUrl = () =>
+  (process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173")
+    .replace(/\/$/, "");
+
 const authCookieOptions = {
   httpOnly: true,
   sameSite: isProduction ? "none" : "lax",
@@ -126,12 +130,18 @@ export const getCurrentUser = async (req, res) => {
 
 /* GOOGLE LOGIN */
 
-export const googleAuthRedirect = passport.authenticate("google", {
-  scope: ["profile", "email"]
-})
+export const googleAuthRedirect = (req, res, next) => {
+  const inviteCode = String(req.query.inviteCode || "").trim();
+  const state = inviteCode ? `workspace:${inviteCode}` : undefined;
+
+  return passport.authenticate("google", {
+    scope: ["profile", "email"],
+    state,
+  })(req, res, next);
+}
 
 export const googleAuthCallback = [
-  passport.authenticate("google", { failureRedirect: "/login" }),
+  passport.authenticate("google", { failureRedirect: `${getFrontendUrl()}/login` }),
 
   async (req, res) => {
     try {
@@ -165,11 +175,18 @@ export const googleAuthCallback = [
 
       res.cookie("token", token, authCookieOptions);
 
-      // 🔥 Redirect to frontend
-      res.redirect(`${process.env.FRONTEND_URL}/dashboard`)
+      const state = String(req.query.state || "");
+      const inviteCode = state.startsWith("workspace:")
+        ? state.slice("workspace:".length)
+        : "";
+
+      // Redirect to the frontend app after setting the auth cookie.
+      res.redirect(inviteCode
+        ? `${getFrontendUrl()}/join/${encodeURIComponent(inviteCode)}`
+        : `${getFrontendUrl()}/home`)
 
     } catch (error) {
-      res.redirect(`${process.env.FRONTEND_URL}/login`)
+      res.redirect(`${getFrontendUrl()}/login`)
     }
   }
 ]

@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext.jsx";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+import { API_URL, requireProductionApiUrl } from "../config/api.js";
 
 function Login({ onSwitchToRegister, onLoggedIn }) {
   const navigate = useNavigate();
@@ -67,8 +66,13 @@ function Login({ onSwitchToRegister, onLoggedIn }) {
 
   // ✅ UPDATED Google Login
   const handleSocialLogin = () => {
+    if (!requireProductionApiUrl()) return;
     setLoading(true);
-    window.location.href = `${API_URL}/api/auth/google`;
+    const pendingInvite = localStorage.getItem("pendingInviteCode");
+    const inviteQuery = pendingInvite
+      ? `?inviteCode=${encodeURIComponent(pendingInvite)}`
+      : "";
+    window.location.href = `${API_URL}/api/auth/google${inviteQuery}`;
   };
 
   return (

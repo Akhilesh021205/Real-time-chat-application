@@ -27,8 +27,9 @@ import Modal from "./Modal.jsx";
 import { useNavigate } from "react-router";
 import { resolveProfilePic } from "./EditProfileModal.jsx";
 import { sameId } from "../utils/ids.js";
+import { API_URL } from "../config/api.js";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_BASE = API_URL;
 
 function conversationAvatarUrl(person, currentUser) {
   if (!person) return null;

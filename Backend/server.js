@@ -11,6 +11,7 @@ import { connectDB } from "./config/db.js";
 import { verifyToken } from "./middleware/verifyToken.js";
 import { Channel } from "./Models/channel.js";
 import { User } from "./Models/user.js";
+import { Workspace } from "./Models/workspace.js";
 
 import messageAPI from "./APIs/messageAPI.js";
 import dmAPI from "./APIs/dmAPI.js";
@@ -177,14 +178,26 @@ const onlineUsers = new Map(); // socket.id -> userId
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  const isMemberOfChannel = (channel, userId) => {
+  const isMemberOfChannel = async (channel, userId) => {
     if (!channel) return false;
     const uid = userId?.toString?.();
     const isOwner = channel.createdBy?.toString?.() === uid;
     const isMember = (channel.members || []).some(
       (m) => m?.toString?.() === uid
     );
-    return isOwner || isMember;
+    const isAdmin = (channel.admins || []).some(
+      (a) => a?.toString?.() === uid
+    );
+    if (isOwner || isMember || isAdmin) return true;
+    if (channel.isPrivate || !channel.workspace) return false;
+
+    const workspace = await Workspace.findById(channel.workspace).select("owner members admins");
+    if (!workspace) return false;
+    return (
+      workspace.owner?.toString() === uid ||
+      workspace.members.some((m) => m.toString() === uid) ||
+      workspace.admins.some((a) => a.toString() === uid)
+    );
   };
 
   /* ✅ GO ONLINE (Presence) */
@@ -216,7 +229,7 @@ io.on("connection", (socket) => {
 
     try {
       const channel = await Channel.findById(targetChannelId);
-      if (!isMemberOfChannel(channel, userId)) return;
+      if (!(await isMemberOfChannel(channel, userId))) return;
 
       socket.join(targetChannelId);
       console.log(`Joined channel: ${targetChannelId}`);
@@ -264,6 +277,60 @@ io.on("connection", (socket) => {
     console.log(`User joined workspace room: ${workspaceId}`);
   });
 
+  /* ✅ HUDDLES (WebRTC signaling) */
+  socket.on("huddle:join", ({ roomId, user }) => {
+    if (!roomId) return;
+    const roomName = `huddle:${roomId}`;
+    const room = io.sockets.adapter.rooms.get(roomName);
+    const participants = room ? Array.from(room).filter((id) => id !== socket.id) : [];
+
+    socket.join(roomName);
+    socket.data.huddleRoom = roomName;
+    socket.data.huddleUser = user;
+
+    socket.emit("huddle:participants", { participants });
+    socket.to(roomName).emit("huddle:user-joined", {
+      socketId: socket.id,
+      user,
+    });
+  });
+
+  socket.on("huddle:offer", ({ to, offer }) => {
+    if (!to || !offer) return;
+    io.to(to).emit("huddle:offer", {
+      from: socket.id,
+      offer,
+      user: socket.data.huddleUser,
+    });
+  });
+
+  socket.on("huddle:answer", ({ to, answer }) => {
+    if (!to || !answer) return;
+    io.to(to).emit("huddle:answer", {
+      from: socket.id,
+      answer,
+    });
+  });
+
+  socket.on("huddle:ice-candidate", ({ to, candidate }) => {
+    if (!to || !candidate) return;
+    io.to(to).emit("huddle:ice-candidate", {
+      from: socket.id,
+      candidate,
+    });
+  });
+
+  socket.on("huddle:leave", ({ roomId }) => {
+    const roomName = roomId ? `huddle:${roomId}` : socket.data.huddleRoom;
+    if (!roomName) return;
+    socket.leave(roomName);
+    socket.to(roomName).emit("huddle:user-left", { socketId: socket.id });
+    if (socket.data.huddleRoom === roomName) {
+      delete socket.data.huddleRoom;
+      delete socket.data.huddleUser;
+    }
+  });
+
   /* ✅ TYPING (CHANNEL OR DM) */
   socket.on("typing", ({ room, username }) => {
     socket.to(room).emit("typing", { username });
@@ -275,6 +342,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
+    if (socket.data.huddleRoom) {
+      socket.to(socket.data.huddleRoom).emit("huddle:user-left", { socketId: socket.id });
+    }
+
     const userId = onlineUsers.get(socket.id);
     if (userId) {
       onlineUsers.delete(socket.id);

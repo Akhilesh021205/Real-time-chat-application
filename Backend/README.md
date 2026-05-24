@@ -6,7 +6,7 @@
 
 ## 🚀 Deployed API
 
-- Backend API: (add your deployment link here)
+- Backend API: https://real-time-chat-application-5dld.onrender.com
 
 ---
 
