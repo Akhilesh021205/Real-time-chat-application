@@ -137,7 +137,6 @@ npm run build
 ```bash
 npm run preview
 ```
-
 ---
 
 ## 🔌 API & Credentials
