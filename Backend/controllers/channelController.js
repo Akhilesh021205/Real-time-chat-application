@@ -2,6 +2,7 @@ import { Channel } from "../Models/channel.js";
 import { Workspace } from "../Models/workspace.js";
 import { User } from "../Models/user.js";
 import Message from "../Models/Message.js";
+import { getCache, setCache, delCache, clearCachePrefix } from "../utils/cache.js";
 
 export const createOrGetDM = async (req, res, next) => {
   try {
@@ -120,6 +121,8 @@ export const createChannel = async (req, res, next) => {
     await channel.save();
     await channel.populate("members", "username email profilePic status");
 
+    await clearCachePrefix("user:channels:");
+
     // 📣 Notify all added members via Socket.io if possible
     // (The frontend will need to handle this to update the sidebar for other users)
     if (workspaceId) {
@@ -161,6 +164,9 @@ export const addMembers = async (req, res, next) => {
 
     await channel.save();
     await channel.populate("members", "username email profilePic status");
+
+    await clearCachePrefix("user:channels:");
+
     res.json(channel);
   } catch (err) {
     next(err);
@@ -193,6 +199,7 @@ export const joinChannel = async (req, res, next) => {
     if (!channel.members.some((m) => m.toString() === req.userId)) {
       channel.members.push(req.userId);
       await channel.save();
+      await clearCachePrefix("user:channels:");
     }
 
     await channel.populate("members", "username email profilePic status");
@@ -205,6 +212,12 @@ export const joinChannel = async (req, res, next) => {
 export const getChannels = async (req, res, next) => {
   try {
     const userId = req.userId;
+    const cacheKey = `user:channels:${userId}`;
+
+    const cachedChannels = await getCache(cacheKey);
+    if (cachedChannels) {
+      return res.json(cachedChannels);
+    }
 
     // 🔍 Find workspaces where the user is a member or owner
     const userWorkspaces = await Workspace.find({
@@ -231,6 +244,8 @@ export const getChannels = async (req, res, next) => {
     })
     .populate("members", "username email profilePic status")
     .sort({ name: 1 });
+
+    await setCache(cacheKey, channels, 300); // 5 minutes TTL
 
     res.json(channels);
   } catch (err) {
@@ -321,6 +336,7 @@ export const joinChannelByCode = async (req, res, next) => {
         if (!isInWorkspace) {
           workspace.members.push(req.userId);
           await workspace.save();
+          await delCache(`workspace:members:${workspace._id}`);
         }
       }
     }
@@ -328,6 +344,7 @@ export const joinChannelByCode = async (req, res, next) => {
     if (!channel.members.some((m) => m.toString() === req.userId)) {
       channel.members.push(req.userId);
       await channel.save();
+      await clearCachePrefix("user:channels:");
     }
 
     await channel.populate("members", "username email profilePic status");

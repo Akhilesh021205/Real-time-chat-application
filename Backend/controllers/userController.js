@@ -1,6 +1,7 @@
 import { User } from "../Models/user.js";
 import { Workspace } from "../Models/workspace.js";
 import mongoose from "mongoose";
+import { getCache, setCache, clearCachePrefix } from "../utils/cache.js";
 
 const displayUsername = (user) => {
   if (user?.username) return user.username;
@@ -12,6 +13,12 @@ export const getUsers = async (req, res, next) => {
   try {
     const userId = req.userId;
     const { workspaceId } = req.query;
+    const cacheKey = `users:directory:${userId}:${workspaceId || "all"}`;
+
+    const cachedUsers = await getCache(cacheKey);
+    if (cachedUsers) {
+      return res.json(cachedUsers);
+    }
 
     const queryConditions = [
       { owner: userId },
@@ -70,10 +77,14 @@ export const getUsers = async (req, res, next) => {
       _id: { $in: Array.from(memberIds) }
     }).select("-password");
 
-    res.json(users.map((user) => ({
+    const result = users.map((user) => ({
       ...user.toObject(),
       username: displayUsername(user),
-    })));
+    }));
+
+    await setCache(cacheKey, result, 300); // 5 minutes TTL
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

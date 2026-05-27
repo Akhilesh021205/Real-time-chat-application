@@ -309,6 +309,7 @@ function DMs() {
                               }
                               alt=""
                               className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
                             />
                           ) : (
                             avatarLetter

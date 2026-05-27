@@ -7,9 +7,13 @@ import MessageInput from "./MessageInput.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }) {
+function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room, onDeleteParent }) {
   const [replies, setReplies] = useState([]);
   const listEndRef = useRef(null);
+
+  const handleDeleteReply = (replyId) => {
+    setReplies((prev) => prev.filter((r) => String(r._id) !== String(replyId)));
+  };
 
   // Fetch thread replies
   useEffect(() => {
@@ -62,14 +66,24 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
       }
     };
 
+    const onMessageDeleted = ({ messageId }) => {
+      if (String(messageId) === String(parentMessage._id)) {
+        onClose();
+      } else {
+        setReplies((prev) => prev.filter((r) => String(r._id) !== String(messageId)));
+      }
+    };
+
     socket.on("newReply", onNewReply);
     socket.on("messageEdited", onMessageUpdated);
     socket.on("messageReacted", onMessageUpdated);
+    socket.on("messageDeleted", onMessageDeleted);
 
     return () => {
       socket.off("newReply", onNewReply);
       socket.off("messageEdited", onMessageUpdated);
       socket.off("messageReacted", onMessageUpdated);
+      socket.off("messageDeleted", onMessageDeleted);
     };
   }, [room, parentMessage]);
 
@@ -113,7 +127,14 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Parent Message (Original) */}
         <div className="pb-4 border-b border-[#1f2937] border-dashed">
-          <MessageBubble message={parentMessage} currentUser={currentUser} />
+          <MessageBubble
+            message={parentMessage}
+            currentUser={currentUser}
+            onDelete={(deletedId) => {
+              onDeleteParent?.(deletedId);
+              onClose();
+            }}
+          />
         </div>
 
         {/* Replies */}
@@ -127,6 +148,7 @@ function ThreadSidebar({ parentMessage, currentUser, users = [], onClose, room }
               message={reply}
               previousMessage={replies[i - 1]}
               currentUser={currentUser}
+              onDelete={handleDeleteReply}
               onRetry={() => {}}
             />
           ))}

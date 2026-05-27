@@ -231,7 +231,7 @@ function Home() {
             >
               <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#11161b] border border-white/10 flex items-center justify-center shrink-0">
                 {profileUrl ? (
-                  <img src={profileUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={profileUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="text-sm font-bold text-accent">{userInitial}</span>
                 )}

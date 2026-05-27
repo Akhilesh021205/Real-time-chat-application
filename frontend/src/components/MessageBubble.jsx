@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import { resolveProfilePic } from "./EditProfileModal.jsx";
+import { sameId } from "../utils/ids.js";
+import { useToast } from "../context/ToastContext.jsx";
 import EmojiPicker from "emoji-picker-react";
+import Modal from "./Modal.jsx";
 import {
   MessageSquare,
   Smile,
@@ -29,6 +33,7 @@ const markdownSchema = {
 };
 
 function MessageBubble({ message, previousMessage, currentUser, onReply, onDelete, onRetry }) {
+  const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text || message.content || "");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -37,6 +42,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
   const [isSaved, setIsSaved] = useState(
     currentUser?.savedMessages?.includes(message._id) || false
   );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const username =
     message.username || message.sender?.username || "User";
@@ -103,18 +109,26 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!canDelete) return;
-    if (!window.confirm("Delete this message permanently?")) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setShowDeleteConfirm(false);
+    if (messageId && messageId.startsWith("tmp_")) {
+      onDelete?.(messageId);
+      return;
+    }
     try {
       await axios.delete(
-        `${API_BASE}/api/messages/delete/${message._id}`,
+        `${API_BASE}/api/messages/delete/${messageId}`,
         { withCredentials: true }
       );
-      onDelete?.(message._id);
+      onDelete?.(messageId);
     } catch (error) {
       console.error("Failed to delete message:", error);
-      alert(error.response?.data?.message || "Failed to delete message.");
+      showToast(error.response?.data?.message || "Failed to delete message.", "error");
     }
   };
 
@@ -142,10 +156,7 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isSameUser =
-    previousMessage &&
-    (previousMessage.username === username ||
-      previousMessage.sender?.username === username);
+  const isSameUser = false;
 
   const time = message.createdAt
     ? new Date(message.createdAt).toLocaleTimeString([], {
@@ -154,13 +165,43 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
       })
     : "";
 
+  const getAvatar = () => {
+    if (senderId === "slackbot" || username === "Slackbot") {
+      return (
+        <img
+          src="/slackbot-icon.jpg"
+          alt="Slackbot"
+          className="w-full h-full object-cover rounded-xl"
+        />
+      );
+    }
+    const senderPic =
+      message.sender?.profilePic ||
+      (currentUser && sameId(senderId, currentUser._id)
+        ? currentUser.profilePic
+        : null);
+
+    if (senderPic) {
+      return (
+        <img
+          src={resolveProfilePic(senderPic)}
+          alt={username}
+          className="w-full h-full object-cover rounded-xl"
+          referrerPolicy="no-referrer"
+        />
+      );
+    }
+
+    return username[0]?.toUpperCase();
+  };
+
   return (
     <div className="group flex gap-3 hover:bg-white/5 hover:backdrop-blur-sm px-3 py-2 rounded-xl transition-all duration-200 relative border border-transparent hover:border-white/5">
 
       {/* AVATAR */}
       {!isSameUser ? (
         <div className="w-10 h-10 bg-accent/80 shadow-md backdrop-blur-sm shadow-accent/20 rounded-xl flex items-center justify-center font-bold shrink-0 border border-white/10 text-white">
-          {username[0]?.toUpperCase()}
+          {getAvatar()}
         </div>
       ) : (
         <div className="w-9" />
@@ -385,6 +426,35 @@ function MessageBubble({ message, previousMessage, currentUser, onReply, onDelet
             <Bookmark size={16} strokeWidth={2} />
           </button>
         </div>
+      )}
+      {showDeleteConfirm && (
+        <Modal
+          open={showDeleteConfirm}
+          title="Delete Message"
+          onClose={() => setShowDeleteConfirm(false)}
+          footer={
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="bg-white/5 hover:bg-white/10 border border-white/5 backdrop-blur-sm rounded-lg transition-all duration-200 active:scale-95 text-white/90 px-3 py-1.5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg shadow-lg shadow-rose-600/20 transition-all active:scale-95 border border-rose-500/50"
+              >
+                Delete
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-gray-300">
+            Are you sure you want to permanently delete this message? This action cannot be undone.
+          </p>
+        </Modal>
       )}
     </div>
   );

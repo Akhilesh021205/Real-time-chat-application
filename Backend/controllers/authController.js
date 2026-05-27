@@ -152,15 +152,15 @@ export const googleAuthCallback = [
 
       if (!dbUser) {
         dbUser = await User.create({
-          username: user.name,
+          username: user.username || user.name || "Google User",
           email: user.email,
-          profilePic: user.avatar,
+          profilePic: user.profilePic || user.avatar || "",
           googleId: user.googleId,
         })
         
         // 🔥 Create default workspace
         await Workspace.create({
-          name: `${user.name}'s Workspace`,
+          name: `${user.username || user.name || "Google User"}'s Workspace`,
           owner: dbUser._id,
           members: [dbUser._id],
         })

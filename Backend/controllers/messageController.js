@@ -118,7 +118,7 @@ export const sendMessage = async (req, res, next) => {
     }
 
     const message = await Message.create(messagePayload);
-    const populatedMessage = await message.populate("sender", "username");
+    const populatedMessage = await message.populate("sender", "username profilePic");
 
     // Emit to the room for both channels + DMs
     req.io.to(roomId).emit("newMessage", populatedMessage);
@@ -160,9 +160,21 @@ export const getDMMessages = async (req, res, next) => {
       }
     }
 
-    const messages = await Message.find({ roomId })
-      .populate("sender", "username")
-      .sort({ createdAt: 1 });
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const before = req.query.before;
+
+    const query = { roomId };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await Message.find(query)
+      .populate("sender", "username profilePic")
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    // Reverse to return them in ascending chronological order for the frontend
+    messages.reverse();
 
     res.json(messages);
   } catch (err) {
@@ -184,11 +196,23 @@ export const getChannelMessages = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const messages = await Message.find({
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const before = req.query.before;
+
+    const query = {
       $or: [{ channel: channelId }, { roomId: channelId }],
-    })
-      .populate("sender", "username")
-      .sort({ createdAt: 1 });
+    };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await Message.find(query)
+      .populate("sender", "username profilePic")
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    // Reverse to return them in ascending chronological order for the frontend
+    messages.reverse();
 
     res.json(messages);
   } catch (err) {
@@ -221,7 +245,7 @@ export const replyToMessage = async (req, res, next) => {
       parentMessage: parentMessageId,
     });
 
-    const populatedReply = await reply.populate("sender", "username");
+    const populatedReply = await reply.populate("sender", "username profilePic");
 
     // ✅ Emit to channel room
     req.io.to(channelId).emit("newReply", populatedReply);
@@ -240,7 +264,7 @@ export const getThreadReplies = async (req, res, next) => {
     const replies = await Message.find({
       parentMessage: messageId,
     })
-      .populate("sender", "username")
+      .populate("sender", "username profilePic")
       .sort({ createdAt: 1 });
 
     res.json(replies);
@@ -272,7 +296,7 @@ export const editMessage = async (req, res, next) => {
     message.isEdited = true;
     await message.save();
 
-    const populatedMessage = await message.populate("sender", "username");
+    const populatedMessage = await message.populate("sender", "username profilePic");
 
     // Emit the edit to the room (channel or DM room)
     const roomId = message.roomId || message.channel?.toString();
@@ -300,7 +324,7 @@ export const togglePin = async (req, res, next) => {
     message.isPinned = !message.isPinned;
     await message.save();
 
-    const populatedMessage = await message.populate("sender", "username");
+    const populatedMessage = await message.populate("sender", "username profilePic");
 
     // Emit event
     const roomId = message.roomId || message.channel?.toString();
@@ -429,7 +453,7 @@ export const toggleReaction = async (req, res, next) => {
 
     await message.save();
 
-    const populatedMessage = await message.populate("sender", "username");
+    const populatedMessage = await message.populate("sender", "username profilePic");
 
     // Emit the reaction update to the room
     const roomId = message.roomId || message.channel?.toString();

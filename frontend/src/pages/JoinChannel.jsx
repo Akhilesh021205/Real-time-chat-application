@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useWorkspace } from "../context/WorkspaceContext.jsx";
 import axios from "axios";
+import { useToast } from "../context/ToastContext.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -11,6 +12,7 @@ export default function JoinChannel() {
   const { code } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const { refreshWorkspaces, setCurrentWorkspace } = useWorkspace();
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
@@ -43,7 +45,7 @@ export default function JoinChannel() {
         setCurrentWorkspace(workspace);
       }
       
-      alert(`Successfully joined channel #${channel.name}!`);
+      showToast(`Successfully joined channel #${channel.name}!`, "success");
       
       navigate(`/chat/${channel._id}`);
     } catch (err) {

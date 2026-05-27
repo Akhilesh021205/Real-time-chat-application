@@ -10,7 +10,7 @@ export const hasProductionApiUrl = () =>
 
 export const requireProductionApiUrl = () => {
   if (hasProductionApiUrl()) return true;
-  alert(
+  console.error(
     "Production API URL is missing. Set VITE_API_URL in Vercel to your deployed backend URL, then redeploy."
   );
   return false;

@@ -2,6 +2,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import dotenv from "dotenv";
 import { User } from "../Models/user.js";
+import { Workspace } from "../Models/workspace.js";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ passport.use(
       try {
 
         const email = profile.emails[0].value;
+        const googlePhoto = profile.photos && profile.photos[0] ? profile.photos[0].value : "";
 
         let user = await User.findOne({ email });
 
@@ -37,9 +39,27 @@ passport.use(
           user = await User.create({
             username: profile.displayName,
             email: email,
-            profilePic: profile.photos[0].value,
+            profilePic: googlePhoto,
             googleId: profile.id,
           });
+
+          // Create default workspace
+          await Workspace.create({
+            name: `${profile.displayName}'s Workspace`,
+            owner: user._id,
+            members: [user._id],
+          });
+        } else {
+          const updates = {};
+          if (!user.googleId) {
+            updates.googleId = profile.id;
+          }
+          if (!user.profilePic || user.profilePic.includes("googleusercontent.com")) {
+            updates.profilePic = googlePhoto;
+          }
+          if (Object.keys(updates).length > 0) {
+            user = await User.findByIdAndUpdate(user._id, { $set: updates }, { new: true });
+          }
         }
 
         return done(null, user);

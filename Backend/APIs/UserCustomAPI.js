@@ -2,6 +2,7 @@ import express from "express";
 import { verifyToken } from "../middleware/verifyToken.js";
 import { User } from "../Models/user.js";
 import Message from "../Models/Message.js";
+import { clearCachePrefix } from "../utils/cache.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -40,7 +41,7 @@ router.get("/search", verifyToken, async (req, res) => {
         }
       ]
     })
-      .populate("sender", "username")
+      .populate("sender", "username profilePic")
       .populate("channel", "name members createdBy")
       .sort({ createdAt: -1 })
       .limit(100);
@@ -75,6 +76,7 @@ router.post("/status", verifyToken, async (req, res) => {
       { customStatus: { text, emoji } }, 
       { new: true }
     ).select("-password");
+    await clearCachePrefix("users:directory:");
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -97,6 +99,7 @@ router.post("/presence", verifyToken, async (req, res) => {
       req.io.emit("userStatusChanged", { userId: req.userId, status });
     }
 
+    await clearCachePrefix("users:directory:");
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -111,6 +114,7 @@ router.post("/profile", verifyToken, async (req, res) => {
       { username, email, aboutMe }, 
       { new: true }
     ).select("-password");
+    await clearCachePrefix("users:directory:");
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -137,6 +141,7 @@ router.post("/profile-pic", verifyToken, upload.single("profilePic"), async (req
       { profilePic }, 
       { new: true }
     ).select("-password");
+    await clearCachePrefix("users:directory:");
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });

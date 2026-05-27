@@ -36,6 +36,8 @@ import {
   sendPasswordResetOTP,
   verifyOTPAndReset,
 } from "./controllers/authController.js";
+import { initCache } from "./utils/cache.js";
+import { globalLimiter, authLimiter } from "./middleware/rateLimiter.js";
 
 dotenv.config();
 
@@ -136,31 +138,37 @@ const __dirname = path.dirname(__filename);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* ================= ROUTES ================= */
-app.use("/api/messages", messageAPI);
-app.use("/api/dm", dmAPI);
-app.use("/api/channels", channelAPI);
-app.use("/api/workspaces", workspaceAPI);
-app.use("/api/users", userAPI);
-app.use("/api/bot", botAPI);
-app.use("/api/canvas", canvasAPI);
-app.use("/api/custom", customAPI);
-app.use("/api/reminders", reminderAPI);
-app.use("/api/notifications", notificationAPI);
-app.use("/api/activity", activityAPI);
-app.use("/api/files", fileAPI);
+const v1Router = express.Router();
+
+// Apply global rate limiting to all API v1 endpoints
+v1Router.use(globalLimiter);
+
+// Sub-routes mapping
+v1Router.use("/messages", messageAPI);
+v1Router.use("/dm", dmAPI);
+v1Router.use("/channels", channelAPI);
+v1Router.use("/workspaces", workspaceAPI);
+v1Router.use("/users", userAPI);
+v1Router.use("/bot", botAPI);
+v1Router.use("/canvas", canvasAPI);
+v1Router.use("/custom", customAPI);
+v1Router.use("/reminders", reminderAPI);
+v1Router.use("/notifications", notificationAPI);
+v1Router.use("/activity", activityAPI);
+v1Router.use("/files", fileAPI);
 
 /* ================= AUTH ================= */
-app.post("/api/auth/register", registerUser);
-app.post("/api/auth/login", loginUser);
-app.post("/api/auth/logout", verifyToken, logoutUser);
-app.get("/api/auth/me", verifyToken, getCurrentUser);
+v1Router.post("/auth/register", authLimiter, registerUser);
+v1Router.post("/auth/login", authLimiter, loginUser);
+v1Router.post("/auth/logout", verifyToken, logoutUser);
+v1Router.get("/auth/me", verifyToken, getCurrentUser);
 
 /* ================= GOOGLE ================= */
-app.get("/api/auth/google", googleAuthRedirect);
-app.get("/api/auth/google/callback", googleAuthCallback);
+v1Router.get("/auth/google", googleAuthRedirect);
+v1Router.get("/auth/google/callback", googleAuthCallback);
 
 /* ================= PASSWORD RESET (OTP) ================= */
-app.post("/api/auth/reset-password", async (req, res, next) => {
+v1Router.post("/auth/reset-password", async (req, res, next) => {
   // Simple password reset (no OTP). Accepts { email, newPassword } and updates the user's password.
   try {
     const { email, newPassword } = req.body;
@@ -171,6 +179,10 @@ app.post("/api/auth/reset-password", async (req, res, next) => {
     next(err);
   }
 });
+
+// Mount the versioned router
+app.use("/api/v1", v1Router);
+app.use("/api", v1Router); // Backwards compatibility for frontend
 
 /* ================= SOCKET LOGIC ================= */
 const onlineUsers = new Map(); // socket.id -> userId
@@ -371,6 +383,7 @@ const PORT = process.env.PORT || 4000;
 (async () => {
   try {
     await connectDB();
+    await initCache();
 
     // Reset all statuses to offline on startup to prevent "stuck" active users
     try {

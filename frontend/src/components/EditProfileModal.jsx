@@ -125,7 +125,7 @@ function EditProfileModal({ open, onClose }) {
             title="Upload photo"
           >
             {previewUrl ? (
-              <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+              <img src={previewUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <span className="w-full h-full flex items-center justify-center text-2xl font-bold text-accent">
                 {initial}

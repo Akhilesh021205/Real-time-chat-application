@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router"
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -10,6 +11,7 @@ function SearchBox({ onSelectArea }) {
   const [users, setUsers] = useState([]);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -35,7 +37,7 @@ function SearchBox({ onSelectArea }) {
   const handleUserClick = async (userId) => {
     // ❌ prevent self chat
     if (userId === user?._id) {
-      alert("You cannot message yourself");
+      showToast("You cannot message yourself", "error");
       return;
     }
 

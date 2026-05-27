@@ -4,6 +4,7 @@ import { Channel } from "../Models/channel.js"
 import Message from "../Models/Message.js"
 import { Notification } from "../Models/Notification.js"
 import nodemailer from "nodemailer"
+import { getCache, setCache, delCache, clearCachePrefix } from "../utils/cache.js"
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
@@ -305,6 +306,9 @@ export const removeWorkspaceMember = async (req, res, next) => {
     workspace.members = workspace.members.filter(m => m.toString() !== userIdToRemove);
     await workspace.save();
 
+    await delCache(`workspace:members:${workspaceId}`);
+    await clearCachePrefix("users:directory:");
+
     res.json({ message: "Member removed", workspace });
   } catch (err) {
     next(err);
@@ -341,6 +345,8 @@ export const joinWorkspaceByCode = async (req, res, next) => {
     if (!alreadyMember) {
       workspace.members.push(req.userId);
       await workspace.save();
+      await delCache(`workspace:members:${workspace._id}`);
+      await clearCachePrefix("users:directory:");
     }
 
     const populated = await Workspace.findById(workspace._id)
@@ -505,6 +511,9 @@ export const leaveWorkspace = async (req, res, next) => {
       { new: true }
     );
 
+    await delCache(`workspace:members:${workspaceId}`);
+    await clearCachePrefix("users:directory:");
+
     res.json({ message: "Left workspace successfully" });
   } catch (err) {
     next(err);
@@ -515,6 +524,34 @@ export const leaveWorkspace = async (req, res, next) => {
 export const getWorkspaceMembers = async (req, res, next) => {
   try {
     const { workspaceId } = req.params;
+    const cacheKey = `workspace:members:${workspaceId}`;
+
+    const cachedMembers = await getCache(cacheKey);
+    if (cachedMembers) {
+      // Check requester is in the workspace
+      const isInWorkspace = cachedMembers.some(
+        (m) => m?._id?.toString() === req.userId || m?.toString() === req.userId
+      );
+
+      if (!isInWorkspace) {
+        // Double check in database to avoid false access denied if cache is stale
+        const workspaceExists = await Workspace.findOne({
+          _id: workspaceId,
+          $or: [
+            { owner: req.userId },
+            { members: req.userId },
+            { admins: req.userId },
+          ],
+        }).select("_id");
+
+        if (!workspaceExists) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      return res.json(cachedMembers);
+    }
+
     const workspace = await Workspace.findById(workspaceId)
       .populate("owner", "username email profilePic status")
       .populate("members", "username email profilePic status")
@@ -548,6 +585,9 @@ export const getWorkspaceMembers = async (req, res, next) => {
     addIfNew(workspace.owner);
     workspace.members.forEach(addIfNew);
     workspace.admins.forEach(addIfNew);
+
+    // Save to cache before sending response
+    await setCache(cacheKey, all, 300); // 5 minutes TTL
 
     res.json(all);
   } catch (err) {

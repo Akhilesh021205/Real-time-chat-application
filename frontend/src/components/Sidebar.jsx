@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useWorkspace } from "../context/WorkspaceContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import Modal from "./Modal.jsx";
 import WorkspaceMembersModal from "./WorkspaceMembersModal.jsx";
 import WorkspaceAnalyticsModal from "./WorkspaceAnalyticsModal.jsx";
@@ -43,6 +44,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refreshChannels }) {
   const { user, logout, updatePresence } = useAuth();
+  const { showToast } = useToast();
   const {
     workspaces: allWorkspaces,
     currentWorkspace,
@@ -106,6 +108,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
   const [editWsError, setEditWsError] = useState("");
   const [isUpdatingWorkspace, setIsUpdatingWorkspace] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const [activeDMs, setActiveDMs] = useState([]);
   const [workspaceMembers, setWorkspaceMembers] = useState([]);
@@ -384,26 +387,24 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
       setWorkspaceMenuOpen(false);
       navigate("/home");
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to leave workspace");
+      showToast(err?.response?.data?.message || "Failed to leave workspace", "error");
     }
   };
 
-  const handleDeleteWorkspace = async () => {
+  const handleDeleteWorkspace = () => {
     if (!currentWorkspace?._id || !userOwnsWorkspace) return;
-    if (
-      !window.confirm(
-        `Delete "${currentWorkspace.name}" permanently? All channels and messages in this workspace will be removed.`
-      )
-    ) {
-      return;
-    }
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteWorkspace = async () => {
+    setDeleteConfirmOpen(false);
     setIsDeletingWorkspace(true);
     try {
       await deleteWorkspace(currentWorkspace._id);
       setWorkspaceMenuOpen(false);
       navigate("/home");
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to delete workspace");
+      showToast(err?.response?.data?.message || "Failed to delete workspace", "error");
     } finally {
       setIsDeletingWorkspace(false);
     }
@@ -527,7 +528,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
           >
             <div className="w-full h-full rounded-[14px] bg-gray-900 overflow-hidden flex items-center justify-center font-bold text-sm text-white">
               {userProfilePic ? (
-                <img src={userProfilePic} alt="" className="w-full h-full object-cover" />
+                <img src={userProfilePic} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 userInitial
               )}
@@ -543,7 +544,7 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-gray-800 shadow-md flex items-center justify-center font-extrabold border border-white/10 overflow-hidden">
                     {userProfilePic ? (
-                      <img src={userProfilePic} alt="" className="w-full h-full object-cover" />
+                      <img src={userProfilePic} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-accent">{userInitial}</span>
                     )}
@@ -890,7 +891,11 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
                 }`}
               >
                 <div className="w-6 h-6 rounded-lg bg-cyan-500/80 flex items-center justify-center text-[10px] font-bold text-white relative shrink-0">
-                  {userInitial}
+                  {userProfilePic ? (
+                    <img src={userProfilePic} alt="" className="w-full h-full object-cover rounded-lg" referrerPolicy="no-referrer" />
+                  ) : (
+                    userInitial
+                  )}
                   <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-[#11161b]" />
                 </div>
                 <span className="text-[13px] truncate">{user?.username} (you)</span>
@@ -923,7 +928,16 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
                     }`}
                   >
                     <div className="w-6 h-6 rounded-lg bg-indigo-500/50 flex items-center justify-center text-[10px] font-bold relative shrink-0">
-                      {otherUser.username?.[0]?.toUpperCase()}
+                      {otherUser.profilePic ? (
+                        <img
+                          src={resolveProfilePic(otherUser.profilePic)}
+                          alt=""
+                          className="w-full h-full object-cover rounded-lg"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        otherUser.username?.[0]?.toUpperCase()
+                      )}
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#11161b] ${
                           otherUser.status === "active" ? "bg-emerald-500" : "bg-gray-500"
@@ -955,7 +969,16 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
                     }`}
                   >
                     <div className="w-6 h-6 rounded-lg bg-violet-500/40 flex items-center justify-center text-[10px] font-bold shrink-0 relative">
-                      {u.username?.[0]?.toUpperCase()}
+                      {u.profilePic ? (
+                        <img
+                          src={resolveProfilePic(u.profilePic)}
+                          alt=""
+                          className="w-full h-full object-cover rounded-lg"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        u.username?.[0]?.toUpperCase()
+                      )}
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#11161b] ${
                           u.status === "active" ? "bg-emerald-500" : "bg-gray-500"
@@ -1185,6 +1208,39 @@ function Sidebar({ users, channels, selectedId, activeArea, onSelectArea, refres
             {currentWorkspace?.name || "this workspace"}
           </span>
           . You can rejoin later only if you have an invite.
+        </p>
+      </Modal>
+
+      <Modal
+        open={deleteConfirmOpen}
+        title="Delete workspace"
+        onClose={() => setDeleteConfirmOpen(false)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-sm"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isDeletingWorkspace}
+              className="px-4 py-2 rounded-md bg-rose-600 text-white font-semibold hover:bg-rose-700 disabled:opacity-50 text-sm"
+              onClick={handleConfirmDeleteWorkspace}
+            >
+              {isDeletingWorkspace ? "Deleting..." : "Delete"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-300">
+          Are you sure you want to permanently delete{" "}
+          <span className="font-semibold text-white">
+            {currentWorkspace?.name}
+          </span>
+          ? All channels and messages in this workspace will be removed. This action cannot be undone.
         </p>
       </Modal>
 

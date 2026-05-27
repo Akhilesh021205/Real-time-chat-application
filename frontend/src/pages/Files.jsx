@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Sidebar from "../components/Sidebar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import {
   isImageFile,
   isPdfFile,
@@ -238,6 +239,7 @@ function FileRow({ file, starred, currentUserId, onToggleStar, onDelete }) {
 
 function Files() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [channels, setChannels] = useState([]);
   const [activeArea, setActiveArea] = useState("files");
@@ -246,6 +248,7 @@ function Files() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [activeFilter, setActiveFilter] = useState("recent");
   const [starredIds, setStarredIds] = useState(() => loadStarredFileIds());
+  const [deleteConfirmFileId, setDeleteConfirmFileId] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -316,8 +319,14 @@ function Files() {
     });
   }, []);
 
-  const handleDeleteFile = async (fileId) => {
-    if (!window.confirm("Delete this file permanently?")) return;
+  const handleDeleteFile = (fileId) => {
+    setDeleteConfirmFileId(fileId);
+  };
+
+  const handleConfirmDeleteFile = async () => {
+    if (!deleteConfirmFileId) return;
+    const fileId = deleteConfirmFileId;
+    setDeleteConfirmFileId(null);
     try {
       await axios.delete(`${API_BASE}/api/files/${fileId}`, { withCredentials: true });
       setUploadedFiles((prev) => prev.filter((f) => f._id !== fileId));
@@ -326,8 +335,9 @@ function Files() {
         saveStarredFileIds(next);
         return next;
       });
+      showToast("File deleted successfully", "success");
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to delete file");
+      showToast(err?.response?.data?.message || "Failed to delete file", "error");
     }
   };
 
@@ -474,6 +484,36 @@ function Files() {
           </div>
         </div>
       </main>
+      {deleteConfirmFileId && (() => {
+        const fileToDelete = uploadedFiles.find((f) => f._id === deleteConfirmFileId);
+        return (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteConfirmFileId(null)} />
+            <div className="relative z-10 w-full max-w-sm bg-[#101418] border border-white/10 rounded-2xl shadow-2xl p-5 text-white">
+              <h3 className="font-semibold text-lg text-primary">Delete File</h3>
+              <p className="text-sm text-gray-300 mt-2">
+                Are you sure you want to permanently delete <span className="font-semibold text-white">"{fileToDelete?.name}"</span>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmFileId(null)}
+                  className="px-4 py-2 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteFile}
+                  className="px-4 py-2 rounded-md bg-rose-600 text-white font-semibold hover:bg-rose-700 text-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

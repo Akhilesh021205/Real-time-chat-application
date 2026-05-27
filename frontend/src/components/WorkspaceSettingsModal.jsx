@@ -4,6 +4,7 @@ import { X, Copy, Check, Users, Pencil, LogOut, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useWorkspace } from "../context/WorkspaceContext.jsx";
 import { isWorkspaceOwner } from "../utils/workspace.js";
+import { useToast } from "../context/ToastContext.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -18,11 +19,13 @@ export default function WorkspaceSettingsModal({
   isDeletingWorkspace = false,
 }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { leaveWorkspace, refreshWorkspaces } = useWorkspace();
   const [inviteCode, setInviteCode] = useState("");
   const [loadingCode, setLoadingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const isOwner = isWorkspaceOwner(workspace, user?._id);
 
@@ -45,20 +48,24 @@ export default function WorkspaceSettingsModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      alert(`Invite code: ${inviteCode}`);
+      showToast(`Invite code: ${inviteCode}`, "info");
     }
   };
 
-  const handleLeave = async () => {
+  const handleLeave = () => {
     if (!workspace?._id || isOwner) return;
-    if (!window.confirm(`Leave "${workspace.name}"?`)) return;
+    setShowLeaveConfirm(true);
+  };
+
+  const handleConfirmLeave = async () => {
+    setShowLeaveConfirm(false);
     setLeaving(true);
     try {
       await leaveWorkspace(workspace._id);
       onClose();
       await refreshWorkspaces?.();
     } catch (err) {
-      alert(err?.response?.data?.message || "Could not leave workspace");
+      showToast(err?.response?.data?.message || "Could not leave workspace", "error");
     } finally {
       setLeaving(false);
     }
@@ -174,6 +181,33 @@ export default function WorkspaceSettingsModal({
           </div>
         </div>
       </div>
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLeaveConfirm(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-[#101418] border border-white/10 rounded-2xl shadow-2xl p-5 text-white">
+            <h3 className="font-semibold text-lg">Leave Workspace</h3>
+            <p className="text-sm text-gray-300 mt-2">
+              Are you sure you want to leave <span className="font-semibold text-white">"{workspace.name}"</span>?
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="px-4 py-2 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLeave}
+                className="px-4 py-2 rounded-md bg-rose-600 text-white font-semibold hover:bg-rose-700 text-sm"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

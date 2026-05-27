@@ -4,11 +4,13 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate } from "react-router";
 import { Globe, User, MessageSquare, Building2, Users } from "lucide-react";
+import { useToast } from "../context/ToastContext.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 export default function Workspaces() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [channels, setChannels] = useState([]);
@@ -58,7 +60,7 @@ export default function Workspaces() {
       fetchData(); // Refresh list
     } catch (err) {
       console.error("Creation failed", err);
-      alert("Failed to create workspace. Please try again.");
+      showToast("Failed to create workspace. Please try again.", "error");
     } finally {
       setIsCreating(false);
     }

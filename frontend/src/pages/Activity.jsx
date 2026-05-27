@@ -54,6 +54,10 @@ function Activity() {
   const [selected, setSelected] = useState(null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const fetchChannels = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/channels`, {
@@ -69,10 +73,15 @@ function Activity() {
     setLoading(true);
     try {
       const [actRes, usersRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/activity`, { withCredentials: true }),
+        axios.get(`${API_BASE}/api/activity`, {
+          params: { page: 1, limit: 20 },
+          withCredentials: true,
+        }),
         axios.get(`${API_BASE}/api/users`, { withCredentials: true }),
       ]);
-      setItems(actRes.data || []);
+      setItems(actRes.data?.items || []);
+      setHasMore(actRes.data?.hasMore ?? false);
+      setPage(1);
       setUsers(usersRes.data);
     } catch (err) {
       console.error(err);
@@ -81,6 +90,37 @@ function Activity() {
       setLoading(false);
     }
   }, []);
+
+  const loadMoreActivity = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const res = await axios.get(`${API_BASE}/api/activity`, {
+        params: { page: nextPage, limit: 20 },
+        withCredentials: true,
+      });
+      const newItems = res.data?.items || [];
+      setItems((prev) => {
+        const combined = [...prev, ...newItems];
+        const deduped = [];
+        const seen = new Set();
+        combined.forEach((item) => {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            deduped.push(item);
+          }
+        });
+        return deduped;
+      });
+      setHasMore(res.data?.hasMore ?? false);
+      setPage(nextPage);
+    } catch (err) {
+      console.error("Failed to load more activity", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     fetchChannels();
@@ -297,6 +337,18 @@ function Activity() {
                     </span>
                   </button>
                 ))}
+              </div>
+            )}
+            {hasMore && !loading && (
+              <div className="flex justify-center py-4 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={loadMoreActivity}
+                  disabled={loadingMore}
+                  className="px-4 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-gray-300 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingMore ? "Loading..." : "Load More"}
+                </button>
               </div>
             )}
           </div>

@@ -71,8 +71,12 @@ function ChatWindow({
   const [messages, setMessages] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [activeThread, setActiveThread] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const listEndRef = useRef(null);
+  const prevOldestMessageIdRef = useRef(null);
+  const prevMessagesLengthRef = useRef(0);
 
   const username = user?.username;
   const userId = user?._id;
@@ -91,6 +95,9 @@ function ChatWindow({
   useEffect(() => {
     setMessages([]);
     setActiveThread(null);
+    setHasMore(true);
+    prevOldestMessageIdRef.current = null;
+    prevMessagesLengthRef.current = 0;
   }, [channelId, selectedUser]);
 
   /* LOAD HISTORY */
@@ -106,6 +113,7 @@ function ChatWindow({
             sender: { username: "Slackbot", _id: "slackbot" },
             createdAt: new Date().toISOString()
           }]);
+          setHasMore(false);
           return;
         }
 
@@ -114,11 +122,21 @@ function ChatWindow({
           ? `${API_BASE}/api/messages/dm/${selectedUser._id}`
           : `${API_BASE}/api/messages/${channelId}`;
 
-        const res = await axios.get(endpoint, { withCredentials: true });
+        const limit = 50;
+        const res = await axios.get(endpoint, {
+          params: { limit },
+          withCredentials: true
+        });
+
+        const fetched = res.data || [];
+        if (fetched.length < limit) {
+          setHasMore(false);
+        }
+
         // Dedupe any accidental duplicate messages by _id
         const deduped = [];
         const seen = new Set();
-        (res.data || []).forEach((m) => {
+        fetched.forEach((m) => {
           const id = m._id || m.createdAt || JSON.stringify(m);
           if (!seen.has(id)) {
             seen.add(id);
@@ -222,13 +240,73 @@ function ChatWindow({
 
   /* AUTO SCROLL & MARK AS READ */
   useEffect(() => {
-    listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!room) return;
+
+    const currentOldestId = messages[0]?._id;
+    const currentLength = messages.length;
+
+    // Prevent scrolling to bottom when loading older messages (prepend)
+    const isPrepended = currentLength > prevMessagesLengthRef.current && 
+                        currentOldestId !== prevOldestMessageIdRef.current &&
+                        prevOldestMessageIdRef.current !== null;
+
+    if (!isPrepended) {
+      listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    prevOldestMessageIdRef.current = currentOldestId;
+    prevMessagesLengthRef.current = currentLength;
 
     // Mark messages as read when viewing the room
-    if (room && messages.length > 0) {
+    if (messages.length > 0) {
       axios.post(`${API_BASE}/api/messages/read/${room}`, {}, { withCredentials: true }).catch(console.error);
     }
   }, [messages, room]);
+
+  const loadOlderMessages = async () => {
+    if (!room || loadingOlder || !hasMore || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const isDM = !!selectedUser && !channelId;
+      const oldestMessage = messages[0];
+      const before = oldestMessage.createdAt;
+      
+      const endpoint = isDM
+        ? `${API_BASE}/api/messages/dm/${selectedUser._id}`
+        : `${API_BASE}/api/messages/${channelId}`;
+
+      const limit = 50;
+      const res = await axios.get(endpoint, {
+        params: { before, limit },
+        withCredentials: true
+      });
+
+      const fetched = res.data || [];
+      if (fetched.length < limit) {
+        setHasMore(false);
+      }
+
+      if (fetched.length > 0) {
+        setMessages((prev) => {
+          const combined = [...fetched, ...prev];
+          const deduped = [];
+          const seen = new Set();
+          combined.forEach((m) => {
+            const id = m._id || m.createdAt || JSON.stringify(m);
+            if (!seen.has(id)) {
+              seen.add(id);
+              deduped.push(m);
+            }
+          });
+          return deduped;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load older messages", err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   /* SEND */
   const handleSend = async (text, attachmentUrl) => {
@@ -389,7 +467,7 @@ function ChatWindow({
   };
 
   const handleDeleteMessage = (messageId) => {
-    setMessages((prev) => prev.filter((m) => m._id !== messageId));
+    setMessages((prev) => prev.filter((m) => String(m._id) !== String(messageId)));
   };
 
   const isDM = !!selectedUser && !selectedChannel;
@@ -543,6 +621,7 @@ function ChatWindow({
                   src={headerAvatarUrl}
                   alt=""
                   className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 (selectedUser?.username?.[0] || "?").toUpperCase()
@@ -740,6 +819,7 @@ function ChatWindow({
                       src={headerAvatarUrl}
                       alt=""
                       className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     user?.username?.[0]?.toUpperCase()
@@ -761,6 +841,7 @@ function ChatWindow({
                       src={headerAvatarUrl}
                       alt=""
                       className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     (selectedUser?.username?.[0] || "?").toUpperCase()
@@ -776,17 +857,31 @@ function ChatWindow({
             )}
           </div>
         ) : (
-          messages.map((m, i) => (
-            <MessageBubble
-              key={`${m._id || m.createdAt || i}-${i}`}
-              message={m}
-              previousMessage={messages[i - 1]}
-              currentUser={user}
-              onReply={(msg) => setActiveThread(msg)}
-              onDelete={handleDeleteMessage}
-              onRetry={handleRetry}
-            />
-          ))
+          <>
+            {hasMore && selectedUser?._id !== "slackbot" && (
+              <div className="flex justify-center pb-4 pt-2 animate-fade-in">
+                <button
+                  type="button"
+                  onClick={loadOlderMessages}
+                  disabled={loadingOlder}
+                  className="px-4 py-1.5 rounded-full text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-gray-300 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingOlder ? "Loading older messages..." : "Load older messages"}
+                </button>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <MessageBubble
+                key={`${m._id || m.createdAt || i}-${i}`}
+                message={m}
+                previousMessage={messages[i - 1]}
+                currentUser={user}
+                onReply={(msg) => setActiveThread(msg)}
+                onDelete={handleDeleteMessage}
+                onRetry={handleRetry}
+              />
+            ))}
+          </>
         )}
 
         <div ref={listEndRef} />
@@ -834,6 +929,7 @@ function ChatWindow({
         currentUser={user}
         users={users}
         onClose={() => setActiveThread(null)}
+        onDeleteParent={handleDeleteMessage}
         room={room}
       />
     )}

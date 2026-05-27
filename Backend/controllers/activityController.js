@@ -149,6 +149,21 @@ export const getActivityFeed = async (req, res, next) => {
 
     items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
+      const startIndex = (page - 1) * limit;
+      const endIndex = page * limit;
+      const paginatedItems = items.slice(startIndex, endIndex);
+
+      return res.json({
+        items: paginatedItems,
+        page,
+        limit,
+        hasMore: items.length > endIndex,
+      });
+    }
+
     res.json(items.slice(0, 80));
   } catch (err) {
     next(err);
